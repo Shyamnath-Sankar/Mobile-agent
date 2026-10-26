@@ -3,6 +3,7 @@ package io.github.shyamnathsankar.zeroclaw.background
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import io.github.shyamnathsankar.zeroclaw.GatewayAuth
 import io.github.shyamnathsankar.zeroclaw.ZeroClawRuntime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -24,8 +25,9 @@ class ScheduledRunWorker(context: Context, params: WorkerParameters) : Coroutine
                 ZeroClawRuntime.appLog("[app] scheduled wake-up: agent did not start")
                 return Result.retry()
             }
+            withContext(Dispatchers.IO) { GatewayAuth.ensureToken(app) }
             val wokeAt = System.currentTimeMillis()
-            val due = withContext(Dispatchers.IO) { GatewayClient.cronJobs() }
+            val due = withContext(Dispatchers.IO) { GatewayClient.cronJobs(app) }
                 .filter { it.enabled && it.nextRunMs <= wokeAt + DUE_SLACK_MS }
             ZeroClawRuntime.appLog("[app] scheduled wake-up: ${due.size} job(s) due")
 
@@ -33,7 +35,7 @@ class ScheduledRunWorker(context: Context, params: WorkerParameters) : Coroutine
             var pending = due
             while (pending.isNotEmpty() && System.currentTimeMillis() < deadline) {
                 delay(POLL_MS)
-                val now = withContext(Dispatchers.IO) { GatewayClient.cronJobs() }.associateBy { it.id }
+                val now = withContext(Dispatchers.IO) { GatewayClient.cronJobs(app) }.associateBy { it.id }
                 pending = pending.filter { d ->
                     val job = now[d.id] ?: return@filter false // deleted after a one-shot run
                     val last = job.lastRunMs

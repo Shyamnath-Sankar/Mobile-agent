@@ -18,7 +18,6 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
-import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -66,6 +65,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -83,6 +83,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.core.net.toUri
 import io.github.shyamnathsankar.zeroclaw.BuildConfig
+import io.github.shyamnathsankar.zeroclaw.GatewayAuth
 import io.github.shyamnathsankar.zeroclaw.ZeroClawRuntime
 import io.github.shyamnathsankar.zeroclaw.background.AgentPrefs
 import io.github.shyamnathsankar.zeroclaw.background.AgentScheduler
@@ -103,7 +104,10 @@ fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit, onAlwaysOnChange: (Bool
     ZcTheme {
         val context = LocalContext.current
         var tab by rememberSaveable { mutableStateOf(Tab.Agent) }
-        val ready by ZeroClawRuntime.ready.collectAsState()
+        val gatewayUp by ZeroClawRuntime.ready.collectAsState()
+        val token by GatewayAuth.paired.collectAsState()
+        // The dashboard needs the gateway up and the app paired (pairing stays on for security).
+        val ready = gatewayUp && token != null
         val webView = remember { mutableStateOf<WebView?>(null) }
         // The WebView is created the first time the gateway is up and then kept alive across tabs.
         var dashboardCreated by remember { mutableStateOf(false) }
@@ -127,7 +131,7 @@ fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit, onAlwaysOnChange: (Bool
             bottomBar = { BottomTabs(tab) { tab = it } },
         ) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
-                if (dashboardCreated) DashboardWebView(webView, Modifier.fillMaxSize())
+                if (dashboardCreated) DashboardWebView(webView, token, Modifier.fillMaxSize())
 
                 when {
                     tab == Tab.Agent && !ready -> Surface(Modifier.fillMaxSize(), color = Zc.Sage) {
@@ -179,7 +183,8 @@ private fun BottomTabs(selected: Tab, onSelect: (Tab) -> Unit) {
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun DashboardWebView(holder: MutableState<WebView?>, modifier: Modifier) {
+private fun DashboardWebView(holder: MutableState<WebView?>, token: String?, modifier: Modifier) {
+    val currentToken by rememberUpdatedState(token)
     AndroidView(
         modifier = modifier.statusBarsPadding(),
         factory = { ctx ->
@@ -199,6 +204,16 @@ private fun DashboardWebView(holder: MutableState<WebView?>, modifier: Modifier)
                 settings.loadWithOverviewMode = true
                 settings.setSupportZoom(false)
                 webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView, url: String) {
+                        // Hand the dashboard the app's gateway token (it reads localStorage.zeroclaw_token);
+                        // reload once if it was missing or stale, so the user never sees a pairing screen.
+                        val t = currentToken ?: return
+                        if (!url.startsWith(ZeroClawRuntime.DASHBOARD_URL)) return
+                        view.evaluateJavascript(
+                            "(function(t){if(localStorage.getItem('zeroclaw_token')!==t){localStorage.setItem('zeroclaw_token',t);return 'set';}return 'ok';})(${org.json.JSONObject.quote(t)})",
+                        ) { result -> if (result?.contains("set") == true) view.reload() }
+                    }
+
                     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                         val host = request.url.host
                         if (host == ZeroClawRuntime.HOST || host == "localhost") return false
@@ -397,14 +412,14 @@ private fun AppScreen(
         Hairline()
         ActionRow("Reload dashboard", "Refresh the in-app dashboard", onClick = onReloadDashboard, enabled = ready)
         Hairline()
+        var reporting by remember { mutableStateOf(false) }
         ActionRow(
-            "Open in Chrome",
-            "Use the dashboard in your browser",
-            onClick = { openInBrowser(context) },
-            enabled = ready,
-            diagonal = true,
+            "Report an AI response",
+            "Flag harmful or offensive output so it can be reviewed",
+            onClick = { reporting = true },
         )
         Hairline()
+        if (reporting) ReportDialog(onDismiss = { reporting = false })
 
         Spacer(Modifier.height(28.dp))
         BackgroundSection(onAlwaysOnChange)
@@ -413,6 +428,12 @@ private fun AppScreen(
         Text("Diagnostics", style = MaterialTheme.typography.headlineMedium, color = Zc.Ink)
         Spacer(Modifier.height(8.dp))
         Text("App version ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = Zc.InkSoft)
+        val agentMb = remember(now) { ZeroClawRuntime.daemonMemoryMb() }
+        Text(
+            "Agent memory: " + (agentMb?.let { "$it MB" } ?: "not running"),
+            style = MaterialTheme.typography.bodySmall,
+            color = Zc.InkSoft,
+        )
         Text(ZeroClawRuntime.describeBinary(context), style = MaterialTheme.typography.bodySmall, color = Zc.InkSoft)
         Text("WebView: ${remember { webViewLabel() }}", style = MaterialTheme.typography.bodySmall, color = Zc.InkSoft)
         Spacer(Modifier.height(12.dp))
@@ -475,10 +496,6 @@ private fun webViewLabel(): String {
     return "${pkg.packageName} ${pkg.versionName}"
 }
 
-private fun openInBrowser(context: Context) {
-    CustomTabsIntent.Builder().build().launchUrl(context, ZeroClawRuntime.DASHBOARD_URL.toUri())
-}
-
 private fun copyToClipboard(context: Context, text: String) {
     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     cm.setPrimaryClip(ClipData.newPlainText("ZeroClaw logs", text))
@@ -539,12 +556,22 @@ private fun BackgroundSection(onAlwaysOnChange: (Boolean) -> Unit) {
         },
     )
     Hairline()
+    var confirmAlwaysOn by remember { mutableStateOf(false) }
     ToggleRow(
         title = "Always on",
         subtitle = "Keeps the agent running with a notification, for chat channels like Telegram. Uses more battery.",
         checked = alwaysOn,
-        onCheckedChange = onAlwaysOnChange,
+        onCheckedChange = { on -> if (on) confirmAlwaysOn = true else onAlwaysOnChange(false) },
     )
+    if (confirmAlwaysOn) {
+        AlwaysOnDialog(
+            onConfirm = {
+                confirmAlwaysOn = false
+                onAlwaysOnChange(true)
+            },
+            onDismiss = { confirmAlwaysOn = false },
+        )
+    }
     Hairline()
     ActionRow(
         "Battery settings",

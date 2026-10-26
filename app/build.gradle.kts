@@ -19,6 +19,9 @@ android {
         versionCode = build
         versionName = "0.1.$build"
 
+        // Where in-app AI content reports are sent (Play AI-Generated Content policy). Set with -PzcReportUrl=...
+        buildConfigField("String", "REPORT_URL", "\"${project.findProperty("zcReportUrl") ?: ""}\"")
+
         // ZeroClaw only publishes an aarch64 Android binary.
         ndk { abiFilters += "arm64-v8a" }
     }

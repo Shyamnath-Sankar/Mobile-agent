@@ -30,7 +30,7 @@ object AgentScheduler {
 
     /** Reads cron jobs from the running gateway and books the earliest enabled one. Blocking. */
     fun syncFromGateway(context: Context) {
-        val next = GatewayClient.cronJobs().filter { it.enabled }.minOfOrNull { it.nextRunMs }
+        val next = GatewayClient.cronJobs(context).filter { it.enabled }.minOfOrNull { it.nextRunMs }
         book(context, next)
     }
 

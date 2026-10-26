@@ -121,3 +121,16 @@ a.bg-pc-accent {
 }
 
 ::selection { background: var(--zc-lilac); color: var(--zc-ink); }
+
+/*
+ * Pages that do not apply inside the Android app (see docs/PLAY_AUDIT.md):
+ * plugins are disabled, pairing is handled by the app, the ACP console is for desktop IDEs,
+ * and logging out would only strand the user (the app re-authenticates on its own).
+ */
+a[href="/plugins"],
+a[href="/pairing"],
+a[href="/acp-console"],
+header button:has(.lucide-log-out),
+header button:has(svg[class*="log-out"]) {
+  display: none !important;
+}

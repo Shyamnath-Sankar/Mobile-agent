@@ -30,6 +30,20 @@ object Shell {
 
     fun isDestructive(command: String) = destructive.any { it.containsMatchIn(command) }
 
+    /**
+     * The shell runs with the app's permissions, so it could read the agent's config, saved secrets and
+     * the app's preferences. Commands that leave the workspace (absolute app-data paths, `..`, the
+     * secret key) need the user's approval first.
+     */
+    private val leavesWorkspace = listOf(
+        Regex("""\.\."""),
+        Regex("""/data/(data|user|user_de)/"""),
+        Regex("""\.secret_key|shared_prefs|files/zeroclaw|files/home|/proc/self"""),
+        Regex("""(^|[\s;&|])cd\s+(/|~)"""),
+    )
+
+    fun leavesWorkspace(command: String) = leavesWorkspace.any { it.containsMatchIn(command) }
+
     data class Outcome(val exitCode: Int?, val output: String, val timedOut: Boolean)
 
     suspend fun run(context: Context, command: String, timeoutSeconds: Int, cwd: String? = null): Outcome =

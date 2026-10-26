@@ -63,9 +63,12 @@ object Tools {
             ),
         ) { ctx, a ->
             val command = a.getString("command")
-            if (Shell.isDestructive(command) &&
-                !Approvals.request(ctx, "Run a command that changes files", command.take(400))
-            ) {
+            val reason = when {
+                Shell.isDestructive(command) -> "Run a command that changes files"
+                Shell.leavesWorkspace(command) -> "Run a command outside the agent workspace"
+                else -> null
+            }
+            if (reason != null && !Approvals.request(ctx, reason, command.take(400))) {
                 return@simple ToolResult("The user denied this command.", isError = true)
             }
             val o = Shell.run(ctx, command, a.optInt("timeout_seconds", Shell.DEFAULT_TIMEOUT_S), a.optString("cwd").ifEmpty { null })

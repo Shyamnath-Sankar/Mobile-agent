@@ -1,6 +1,7 @@
 package io.github.shyamnathsankar.zeroclaw.tools
 
 import android.content.Context
+import io.github.shyamnathsankar.zeroclaw.GatewayAuth
 import io.github.shyamnathsankar.zeroclaw.ZeroClawRuntime
 import java.net.HttpURLConnection
 import java.net.URL
@@ -18,8 +19,11 @@ object McpRegistrar {
     private const val BUNDLE = "phone"
     private const val TOOL_TIMEOUT_SECS = 330 // covers a 300 s command or a 120 s approval wait
 
+    private lateinit var appContext: Context
+
     /** Blocking; call from a background thread while the gateway is up. */
     fun ensure(context: Context) {
+        appContext = context.applicationContext
         val url = McpServer.url(context)
         if (prop("mcp.servers.$SERVER.url") == null) {
             request("POST", "/api/config/map-key?path=mcp.servers&key=$SERVER")
@@ -69,6 +73,7 @@ object McpRegistrar {
     private fun request(method: String, path: String, body: String? = null): String {
         val conn = URL("http://${ZeroClawRuntime.HOST}:${ZeroClawRuntime.PORT}$path").openConnection() as HttpURLConnection
         conn.requestMethod = method
+        GatewayAuth.authorize(appContext, conn)
         conn.connectTimeout = 3_000
         conn.readTimeout = 15_000
         if (body != null) {

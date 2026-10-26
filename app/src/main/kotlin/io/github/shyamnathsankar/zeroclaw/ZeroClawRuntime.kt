@@ -41,6 +41,38 @@ object ZeroClawRuntime {
 
     private var daemon: Process? = null
 
+    /**
+     * In-memory config overrides applied on every start (never written to the user's config):
+     * features that cannot work on Android or that Play policy does not allow are switched off.
+     * See docs/PLAY_AUDIT.md for the reasoning behind each entry.
+     */
+    private val androidOverrides = mapOf(
+        // Only the optional built-ins that work on a phone. Dropped: screenshot (no desktop capture tool),
+        // browser_open / browser / browser_delegate / text_browser (need xdg-open, Chrome or a CLI browser;
+        // the app's android__browser_* tools replace them).
+        "ZEROCLAW_tools__optional" to listOf(
+            "TodoWrite", "ask_user", "backup", "calculator", "canvas", "channel_room",
+            "cron_add", "cron_list", "cron_remove", "cron_run", "cron_runs", "cron_update",
+            "delegate", "escalate_to_human", "git_forge", "http_request", "image_info", "image_gen",
+            "llm_task", "mcp_prompts", "mcp_resources", "memory_export", "memory_purge",
+            "model_routing_config", "model_switch", "poll", "proxy_config", "pushover", "reaction",
+            "schedule", "send_message_to_peer", "send_via", "sessions_current", "sessions_history",
+            "sessions_list", "sessions_send", "spawn_subagent", "weather", "web_search_tool",
+            "email_read", "email_search",
+        ).joinToString(",", "[", "]") { "\"$it\"" },
+        "ZEROCLAW_browser__enabled" to "false",
+        "ZEROCLAW_browser__automation_enabled" to "false",
+        // Plugins are code from a registry: not allowed to be downloaded by a Play app.
+        "ZEROCLAW_plugins__enabled" to "false",
+        // Never expose the gateway beyond loopback; no tunnel binaries exist on Android anyway.
+        "ZEROCLAW_tunnel__tunnel_provider" to "none",
+        "ZEROCLAW_gateway__allow_public_bind" to "false",
+        "ZEROCLAW_gateway__allow_remote_admin" to "false",
+        "ZEROCLAW_gateway__require_pairing" to "true",
+        // No Docker/Bubblewrap on Android; run tools natively inside the app sandbox.
+        "ZEROCLAW_runtime__kind" to "native",
+    )
+
     fun binary(context: Context): File =
         File(context.applicationInfo.nativeLibraryDir, "libzeroclaw.so")
 
@@ -83,6 +115,7 @@ object ZeroClawRuntime {
             _running.value = false
             _ready.value = false
             _startedAt.value = null
+            GatewayAuth.reset()
             log("[app] zeroclaw daemon exited with code $code")
         }
     }
@@ -142,6 +175,36 @@ object ZeroClawRuntime {
         }
     }
 
+    /** Runs a one-off CLI command and returns its combined output (not logged). Blocking. */
+    fun runCapture(context: Context, args: List<String>, timeoutSeconds: Long = 30): String? {
+        val app = context.applicationContext
+        prepare(app)
+        val process = launch(app, args, captureToLog = false) ?: return null
+        val output = StringBuilder()
+        val reader = thread(isDaemon = true) {
+            process.inputStream.bufferedReader().use { r -> output.append(r.readText()) }
+        }
+        if (!process.waitFor(timeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)) process.destroyForcibly()
+        reader.join(2_000)
+        return output.toString()
+    }
+
+    /** Resident memory of the running agent process in MB, read from /proc; null if not running. */
+    fun daemonMemoryMb(): Int? {
+        val myUid = android.os.Process.myUid()
+        File("/proc").listFiles()?.forEach { dir ->
+            dir.name.toIntOrNull() ?: return@forEach
+            val cmdline = runCatching { File(dir, "cmdline").readText() }.getOrNull() ?: return@forEach
+            if (!cmdline.contains("libzeroclaw.so") || !cmdline.contains("daemon")) return@forEach
+            val status = runCatching { File(dir, "status").readLines() }.getOrNull() ?: return@forEach
+            val uid = status.firstOrNull { it.startsWith("Uid:") }?.split(Regex("\\s+"))?.getOrNull(1)?.toIntOrNull()
+            if (uid != myUid) return@forEach
+            val kb = status.firstOrNull { it.startsWith("VmRSS:") }?.split(Regex("\\s+"))?.getOrNull(1)?.toLongOrNull()
+            if (kb != null) return (kb / 1024).toInt()
+        }
+        return null
+    }
+
     fun appLog(line: String) = log(line)
 
     fun clearLogs() = _logs.update { emptyList() }
@@ -185,7 +248,7 @@ object ZeroClawRuntime {
     private fun homeDir(app: Context) = File(app.filesDir, "home")
     private fun dataDir(app: Context) = File(app.filesDir, "zeroclaw")
 
-    private fun launch(app: Context, args: List<String>): Process? {
+    private fun launch(app: Context, args: List<String>, captureToLog: Boolean = true): Process? {
         val bin = binary(app)
         if (!bin.exists()) {
             log("[app] ERROR: ${describeBinary(app)}")
@@ -199,13 +262,14 @@ object ZeroClawRuntime {
             put("TMPDIR", app.cacheDir.absolutePath)
             put("ZEROCLAW_CONFIG_DIR", dataDir(app).absolutePath)
             put("ZEROCLAW_gateway__web_dist_dir", WebAssets.distDir(app).absolutePath)
-            // Single-user device, loopback-only gateway: skip the pairing step so the dashboard opens directly.
-            put("ZEROCLAW_gateway__require_pairing", "false")
+            putAll(androidOverrides)
         }
         return try {
             val process = pb.start()
-            thread(name = "zeroclaw-log", isDaemon = true) {
-                process.inputStream.bufferedReader().useLines { lines -> lines.forEach(::log) }
+            if (captureToLog) {
+                thread(name = "zeroclaw-log", isDaemon = true) {
+                    process.inputStream.bufferedReader().useLines { lines -> lines.forEach(::log) }
+                }
             }
             process
         } catch (e: Exception) {

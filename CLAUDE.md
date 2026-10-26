@@ -63,9 +63,10 @@ Keep both in sync. Fonts are OFL (licences in `assets/zc-theme/`).
   dashboard / agent browser, never for sign-in.
 - Keep permissions minimal; every sensitive permission needs an in-app disclosure.
 - Gateway stays bound to loopback; never expose it on the network.
-- TODO before any public release: the gateway runs with `require_pairing=false` (so any local app can
-  reach 127.0.0.1:42617). Replace with automatic pairing (app obtains the token and hands it to the
-  dashboard) or another per-app authentication.
+- Gateway pairing stays on. `GatewayAuth` pairs automatically (CLI `gateway get-paircode` → `POST /pair`),
+  sends the bearer token on app API calls and injects it as `localStorage.zeroclaw_token` for the dashboard.
+- Android-incompatible or non-compliant ZeroClaw features are switched off with in-memory env overrides
+  (`ZeroClawRuntime.androidOverrides`). Keep `docs/PLAY_AUDIT.md` in sync when adding features.
 
 ## Stack (target)
 

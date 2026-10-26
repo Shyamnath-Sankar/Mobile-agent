@@ -1,5 +1,7 @@
 package io.github.shyamnathsankar.zeroclaw.background
 
+import android.content.Context
+import io.github.shyamnathsankar.zeroclaw.GatewayAuth
 import io.github.shyamnathsankar.zeroclaw.ZeroClawRuntime
 import java.net.HttpURLConnection
 import java.net.URL
@@ -19,8 +21,8 @@ data class CronJobInfo(
 /** Minimal client for the loopback gateway. Blocking; call from a background thread. */
 object GatewayClient {
 
-    fun cronJobs(): List<CronJobInfo> {
-        val body = get("/api/cron")
+    fun cronJobs(context: Context): List<CronJobInfo> {
+        val body = get(context, "/api/cron")
         val jobs = JSONObject(body).optJSONArray("jobs") ?: return emptyList()
         return (0 until jobs.length()).mapNotNull { i ->
             val j = jobs.getJSONObject(i)
@@ -41,8 +43,9 @@ object GatewayClient {
                 ?: runCatching { OffsetDateTime.parse(t).toInstant().toEpochMilli() }.getOrNull()
         }
 
-    private fun get(path: String): String {
+    private fun get(context: Context, path: String): String {
         val conn = URL("http://${ZeroClawRuntime.HOST}:${ZeroClawRuntime.PORT}$path").openConnection() as HttpURLConnection
+        GatewayAuth.authorize(context, conn)
         conn.connectTimeout = 3_000
         conn.readTimeout = 10_000
         try {

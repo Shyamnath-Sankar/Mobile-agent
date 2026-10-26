@@ -1,6 +1,7 @@
 package io.github.shyamnathsankar.zeroclaw.background
 
 import android.content.Context
+import io.github.shyamnathsankar.zeroclaw.GatewayAuth
 import io.github.shyamnathsankar.zeroclaw.ZeroClawRuntime
 import io.github.shyamnathsankar.zeroclaw.ZeroClawService
 import io.github.shyamnathsankar.zeroclaw.tools.McpRegistrar
@@ -53,6 +54,10 @@ object AgentController {
                     // Each fresh daemon: make sure ZeroClaw knows the phone tools, then keep schedules booked.
                     val started = ZeroClawRuntime.startedAt.value
                     if (started != null && started != registeredFor) {
+                        if (GatewayAuth.ensureToken(app) == null) {
+                            delay(5_000)
+                            continue
+                        }
                         runCatching { McpRegistrar.ensure(app) }
                             .onFailure { ZeroClawRuntime.appLog("[app] could not register phone tools: ${it.message}") }
                         registeredFor = started
