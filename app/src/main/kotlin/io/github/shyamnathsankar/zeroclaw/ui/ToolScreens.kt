@@ -68,7 +68,8 @@ fun BrowserScreen() {
                 Pill(if (state.loading) "Loading" else "Live", if (state.loading) Zc.Butter else Zc.Mint)
             }
             Text(
-                "Watch your agent browse. It asks before it submits, signs in or pays.",
+                "Watch your agent browse. It asks before it submits, signs in or pays. " +
+                    "If it says it can't browse, start a new conversation so it picks up the phone tools.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Zc.InkSoft,
             )

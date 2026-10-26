@@ -25,7 +25,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -87,6 +90,7 @@ import io.github.shyamnathsankar.zeroclaw.GatewayAuth
 import io.github.shyamnathsankar.zeroclaw.ZeroClawRuntime
 import io.github.shyamnathsankar.zeroclaw.background.AgentPrefs
 import io.github.shyamnathsankar.zeroclaw.background.AgentScheduler
+import io.github.shyamnathsankar.zeroclaw.tools.McpRegistrar
 import io.github.shyamnathsankar.zeroclaw.ui.theme.Zc
 import io.github.shyamnathsankar.zeroclaw.ui.theme.ZcTheme
 import kotlinx.coroutines.delay
@@ -99,6 +103,7 @@ private enum class Tab(val label: String, val icon: ImageVector) {
     App("App", Icons.Outlined.Settings),
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit, onAlwaysOnChange: (Boolean) -> Unit) {
     ZcTheme {
@@ -128,9 +133,11 @@ fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit, onAlwaysOnChange: (Bool
             containerColor = Zc.Sage,
             // Screens handle the status bar themselves; the bottom bar handles the navigation bar.
             contentWindowInsets = WindowInsets(0),
-            bottomBar = { BottomTabs(tab) { tab = it } },
+            // While the keyboard is open the tab bar steps aside so the chat box sits right above it.
+            bottomBar = { if (!WindowInsets.isImeVisible) BottomTabs(tab) { tab = it } },
         ) { padding ->
-            Box(Modifier.fillMaxSize().padding(padding)) {
+            // Edge-to-edge windows are not resized for the keyboard, so pad the content by the IME height.
+            Box(Modifier.fillMaxSize().padding(padding).imePadding()) {
                 if (dashboardCreated) DashboardWebView(webView, token, Modifier.fillMaxSize())
 
                 when {
@@ -428,6 +435,8 @@ private fun AppScreen(
         Text("Diagnostics", style = MaterialTheme.typography.headlineMedium, color = Zc.Ink)
         Spacer(Modifier.height(8.dp))
         Text("App version ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = Zc.InkSoft)
+        val toolsStatus by McpRegistrar.status.collectAsState()
+        Text("Phone tools: $toolsStatus", style = MaterialTheme.typography.bodySmall, color = Zc.InkSoft)
         val agentMb = remember(now) { ZeroClawRuntime.daemonMemoryMb() }
         Text(
             "Agent memory: " + (agentMb?.let { "$it MB" } ?: "not running"),

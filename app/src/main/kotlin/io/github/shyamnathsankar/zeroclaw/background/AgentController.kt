@@ -45,25 +45,21 @@ object AgentController {
         scope.launch { ZeroClawRuntime.startDaemon(app) }
         if (syncLoop?.isActive != true) {
             syncLoop = scope.launch {
-                var registeredFor: Long? = null
                 while (isActive) {
                     if (!ZeroClawRuntime.ready.value) {
                         delay(1_000)
                         continue
                     }
-                    // Each fresh daemon: make sure ZeroClaw knows the phone tools, then keep schedules booked.
-                    val started = ZeroClawRuntime.startedAt.value
-                    if (started != null && started != registeredFor) {
-                        if (GatewayAuth.ensureToken(app) == null) {
-                            delay(5_000)
-                            continue
-                        }
-                        runCatching { McpRegistrar.ensure(app) }
-                            .onFailure { ZeroClawRuntime.appLog("[app] could not register phone tools: ${it.message}") }
-                        registeredFor = started
+                    // Every 30 s: stay paired, make sure every agent (including ones created since the
+                    // last check) has the phone tools, and keep the next scheduled job booked.
+                    if (GatewayAuth.ensureToken(app) == null) {
+                        delay(5_000)
+                        continue
                     }
+                    runCatching { McpRegistrar.ensure(app) }
+                        .onFailure { ZeroClawRuntime.appLog("[app] could not register phone tools: ${it.message}") }
                     runCatching { AgentScheduler.syncFromGateway(app) }
-                    delay(60_000)
+                    delay(30_000)
                 }
             }
         }
