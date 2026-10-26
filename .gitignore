@@ -1,0 +1,13 @@
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+.DS_Store
+captures/
+.cxx/
+
+# Fetched by scripts/fetch-zeroclaw.sh, never committed (≈45 MB binary + dashboard bundle)
+app/src/main/jniLibs/
+app/src/main/assets/web-dist/
+app/src/main/assets/zeroclaw-release.txt
