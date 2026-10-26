@@ -42,6 +42,10 @@ android {
         }
     }
 
+    // The privacy policy ships inside the app (rendered on the Privacy screen) from the same file that is
+    // published for the Play listing.
+    sourceSets["main"].assets.srcDir("../docs/legal")
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

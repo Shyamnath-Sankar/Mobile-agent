@@ -4,16 +4,17 @@ on:
   push:
     branches: [main, "claude/**"]
   workflow_dispatch:
-    inputs:
-      zeroclaw_tag:
-        description: "ZeroClaw release tag to bundle (default: latest)"
-        required: false
-        default: "latest"
+
+env:
+  # ZeroClaw version bundled in the app. The binary is rebuilt from this tag with 16 KB page alignment
+  # (required by Google Play for apps targeting Android 15+); the dashboard comes from the same release.
+  ZEROCLAW_TAG: v0.8.6
+  ZEROCLAW_TARGET: aarch64-linux-android
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
 
@@ -24,9 +25,59 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Fetch ZeroClaw Android release
+      # ---- ZeroClaw for Android, 16 KB aligned (cached per tag; rebuilt only when the tag changes) ----
+      - name: Restore 16 KB ZeroClaw build
+        id: zc-cache
+        uses: actions/cache@v4
+        with:
+          path: zeroclaw-bin
+          key: zeroclaw-${{ env.ZEROCLAW_TAG }}-${{ env.ZEROCLAW_TARGET }}-16k-v1
+
+      - name: Check out ZeroClaw source
+        if: steps.zc-cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: zeroclaw-labs/zeroclaw
+          ref: ${{ env.ZEROCLAW_TAG }}
+          path: zc-src
+
+      - name: Install Rust
+        if: steps.zc-cache.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ env.ZEROCLAW_TARGET }}
+
+      - name: Build ZeroClaw (16 KB pages)
+        if: steps.zc-cache.outputs.cache-hit != 'true'
+        working-directory: zc-src
+        run: |
+          ndk="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK}"
+          bin="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          export PATH="$bin:$PATH"
+          export CC_aarch64_linux_android="aarch64-linux-android21-clang"
+          export CXX_aarch64_linux_android="aarch64-linux-android21-clang++"
+          export AR_aarch64_linux_android="llvm-ar"
+          # Upstream's stack size, plus 16 KB max/common page size for Play's 16 KB requirement.
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS="-C link-arg=-Wl,-z,stack-size=8388608 -C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wl,-z,common-page-size=16384"
+          # Thin LTO keeps CI time reasonable; the feature set matches the official Android release.
+          export CARGO_PROFILE_RELEASE_LTO=thin
+          export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16
+          FEATURES="$(cargo run --quiet -p xtask --bin generate -- features --selection dist --target "$ZEROCLAW_TARGET")"
+          echo "Resolved features: $FEATURES"
+          cargo build --release --locked --no-default-features --features "$FEATURES" --target "$ZEROCLAW_TARGET"
+          mkdir -p ../zeroclaw-bin
+          cp "target/$ZEROCLAW_TARGET/release/zeroclaw" ../zeroclaw-bin/zeroclaw
+
+      - name: Verify 16 KB alignment
+        run: |
+          ndk="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK}"
+          readelf="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+          "$readelf" -lW zeroclaw-bin/zeroclaw > segments.txt
+          python3 scripts/check-16k-alignment.py segments.txt
+
+      - name: Stage ZeroClaw (binary + dashboard)
         env:
-          ZEROCLAW_TAG: ${{ inputs.zeroclaw_tag || 'latest' }}
+          ZEROCLAW_BINARY: zeroclaw-bin/zeroclaw
         run: bash scripts/fetch-zeroclaw.sh
 
       - name: Build debug APK

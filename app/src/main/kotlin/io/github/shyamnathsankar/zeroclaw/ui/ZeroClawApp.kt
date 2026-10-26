@@ -160,6 +160,13 @@ fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit, onAlwaysOnChange: (Bool
             }
         }
         ApprovalDialog()
+
+        // First launch: the privacy notice comes before anything else; the full policy opens on top.
+        LaunchedEffect(Unit) { PrivacyUi.load(context) }
+        val privacyAccepted by PrivacyUi.accepted.collectAsState()
+        val showPolicy by PrivacyUi.showPolicy.collectAsState()
+        if (privacyAccepted == false) OnboardingScreen(onAccept = { PrivacyUi.accept(context) })
+        if (showPolicy) PrivacyPolicyScreen()
     }
 }
 
@@ -432,6 +439,8 @@ private fun AppScreen(
         )
         Hairline()
         if (reporting) ReportDialog(onDismiss = { reporting = false })
+        ActionRow("Privacy policy", "What stays on your phone and what is sent where", onClick = { PrivacyUi.openPolicy() })
+        Hairline()
 
         Spacer(Modifier.height(28.dp))
         BackgroundSection(onAlwaysOnChange)
