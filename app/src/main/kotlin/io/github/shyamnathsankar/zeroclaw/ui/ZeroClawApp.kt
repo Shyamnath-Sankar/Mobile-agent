@@ -1,16 +1,18 @@
 package io.github.shyamnathsankar.zeroclaw.ui
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
+import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.compose.BackHandler
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -37,43 +40,70 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.net.toUri
+import io.github.shyamnathsankar.zeroclaw.BuildConfig
 import io.github.shyamnathsankar.zeroclaw.ZeroClawRuntime
 
-private enum class Tab(val label: String) { Dashboard("Dashboard"), Logs("Logs"), Control("Control") }
+private enum class Tab(val label: String) { Agent("Agent"), Logs("Logs"), App("App") }
+
+// Matches the ZeroClaw dashboard's dark surface so the native chrome blends in.
+private val DashboardBackground = Color(0xFF0E0F13)
+
+private val AppColors = darkColorScheme(
+    primary = Color(0xFF22D3EE),
+    onPrimary = Color(0xFF041014),
+    background = DashboardBackground,
+    surface = DashboardBackground,
+    surfaceContainer = Color(0xFF16181E),
+)
 
 @Composable
 fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit) {
-    MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
-        var tab by rememberSaveable { mutableStateOf(Tab.Control) }
+    MaterialTheme(colorScheme = AppColors) {
+        val context = LocalContext.current
+        var tab by rememberSaveable { mutableStateOf(Tab.Agent) }
         val ready by ZeroClawRuntime.ready.collectAsState()
+        val webView = remember { mutableStateOf<WebView?>(null) }
+        // The WebView is created the first time the gateway is up and then kept alive across tabs.
+        var dashboardCreated by remember { mutableStateOf(false) }
 
-        // Jump to the dashboard tab the first time the gateway comes up.
-        LaunchedEffect(ready) { if (ready) tab = Tab.Dashboard }
+        LaunchedEffect(ready) {
+            if (!ready) return@LaunchedEffect
+            if (dashboardCreated) webView.value?.reload() else dashboardCreated = true
+            tab = Tab.Agent
+        }
+
+        BackHandler(enabled = tab != Tab.Agent) { tab = Tab.Agent }
+        BackHandler(enabled = tab == Tab.Agent) {
+            val w = webView.value
+            if (ready && w != null && w.canGoBack()) w.goBack() else (context as? Activity)?.moveTaskToBack(true)
+        }
 
         Scaffold(
+            containerColor = DashboardBackground,
             bottomBar = {
-                NavigationBar {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
                     Tab.entries.forEach { t ->
                         NavigationBarItem(
                             selected = tab == t,
@@ -81,9 +111,9 @@ fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit) {
                             icon = {
                                 Icon(
                                     when (t) {
-                                        Tab.Dashboard -> Icons.Filled.Home
+                                        Tab.Agent -> Icons.Filled.Home
                                         Tab.Logs -> Icons.Filled.Info
-                                        Tab.Control -> Icons.Filled.Settings
+                                        Tab.App -> Icons.Filled.Settings
                                     },
                                     contentDescription = t.label,
                                 )
@@ -95,10 +125,17 @@ fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit) {
             },
         ) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
-                when (tab) {
-                    Tab.Dashboard -> DashboardScreen()
-                    Tab.Logs -> LogsScreen()
-                    Tab.Control -> ControlScreen(onStart, onStop)
+                if (dashboardCreated) DashboardWebView(webView, Modifier.fillMaxSize())
+
+                when {
+                    tab == Tab.Agent && !ready -> Surface(Modifier.fillMaxSize()) {
+                        StartupScreen(onStart = onStart, onShowLogs = { tab = Tab.Logs })
+                    }
+                    tab == Tab.Logs -> Surface(Modifier.fillMaxSize()) { LogsScreen() }
+                    tab == Tab.App -> Surface(Modifier.fillMaxSize()) {
+                        AppScreen(onStart, onStop, onReloadDashboard = { webView.value?.reload() })
+                    }
+                    else -> Unit
                 }
             }
         }
@@ -107,104 +144,69 @@ fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit) {
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun DashboardScreen() {
-    val ready by ZeroClawRuntime.ready.collectAsState()
-    val running by ZeroClawRuntime.running.collectAsState()
-    var reloadKey by remember { mutableIntStateOf(0) }
-    var inApp by rememberSaveable { mutableStateOf(false) }
-
-    if (!ready) {
-        Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
-            Text(
-                if (running) "Starting ZeroClaw…" else "ZeroClaw is not running.",
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Text(
-                if (running) "Waiting for the gateway on port ${ZeroClawRuntime.PORT}. Check the Logs tab if this takes long."
-                else "Open the Control tab and press Start.",
-                modifier = Modifier.padding(top = 8.dp),
-            )
-        }
-        return
-    }
-
-    val context = LocalContext.current
-    val webView = remember { webViewInfo() }
-
-    // The dashboard renders in Chrome but not in some devices' WebView, so Chrome is the default.
-    if (!inApp) {
-        Column(
-            Modifier.fillMaxSize().padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-        ) {
-            Text("ZeroClaw is running", style = MaterialTheme.typography.titleLarge)
-            Text("Open the dashboard in Chrome to set up your provider and chat. The agent keeps running in the background.")
-            Button(onClick = { openInBrowser(context) }, modifier = Modifier.fillMaxWidth()) {
-                Text("Open dashboard")
-            }
-            OutlinedButton(onClick = { inApp = true }, modifier = Modifier.fillMaxWidth()) {
-                Text("Try in-app view (may not render)")
-            }
-            Text("WebView: ${webView.label}", style = MaterialTheme.typography.bodySmall)
-        }
-        return
-    }
-
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                "ZeroClaw dashboard",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.weight(1f).align(Alignment.CenterVertically),
-            )
-            OutlinedButton(onClick = { inApp = false }) { Text("Back") }
-            OutlinedButton(onClick = { reloadKey++ }) { Text("Reload") }
-        }
-        if (webView.tooOld) {
-            Text(
-                "Your WebView (${webView.label}) is older than the dashboard needs (Chrome 111+). " +
-                    "Update \"Android System WebView\" in Play Store, or use Open in Chrome.",
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-            )
-        }
-        androidx.compose.runtime.key(reloadKey) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { ctx ->
-                    WebView(ctx).apply {
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        webViewClient = object : WebViewClient() {
-                            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                                val host = request.url.host
-                                if (host == ZeroClawRuntime.HOST || host == "localhost") return false
-                                // Anything off-device opens in the user's browser, never inside this WebView.
-                                ctx.startActivity(
-                                    Intent(Intent.ACTION_VIEW, request.url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                )
-                                return true
-                            }
-
-                            override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) = Unit
-                        }
-                        webChromeClient = object : WebChromeClient() {
-                            override fun onConsoleMessage(m: ConsoleMessage): Boolean {
-                                if (m.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
-                                    ZeroClawRuntime.appLog("[web] ${m.message()} (${m.sourceId()}:${m.lineNumber()})")
-                                }
-                                return true
-                            }
-                        }
-                        loadUrl(ZeroClawRuntime.DASHBOARD_URL)
+private fun DashboardWebView(holder: MutableState<WebView?>, modifier: Modifier) {
+    AndroidView(
+        modifier = modifier,
+        factory = { ctx ->
+            WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
+            WebView(ctx).apply {
+                // Compose gives AndroidViews WRAP_CONTENT by default; a WebView that wraps its content
+                // reports a broken CSS viewport height, which collapses the dashboard's vh-sized layout.
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                )
+                setBackgroundColor(DashboardBackground.toArgb())
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.textZoom = 100
+                settings.useWideViewPort = true
+                settings.loadWithOverviewMode = true
+                settings.setSupportZoom(false)
+                webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                        val host = request.url.host
+                        if (host == ZeroClawRuntime.HOST || host == "localhost") return false
+                        // Anything off-device opens in the user's browser, never inside this WebView.
+                        ctx.startActivity(Intent(Intent.ACTION_VIEW, request.url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        return true
                     }
-                },
-                onRelease = { it.destroy() },
-            )
+                }
+                webChromeClient = object : WebChromeClient() {
+                    override fun onConsoleMessage(m: ConsoleMessage): Boolean {
+                        if (m.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                            ZeroClawRuntime.appLog("[web] ${m.message()} (${m.sourceId()}:${m.lineNumber()})")
+                        }
+                        return true
+                    }
+                }
+                loadUrl(ZeroClawRuntime.DASHBOARD_URL)
+                holder.value = this
+            }
+        },
+        onRelease = {
+            holder.value = null
+            it.destroy()
+        },
+    )
+}
+
+@Composable
+private fun StartupScreen(onStart: () -> Unit, onShowLogs: () -> Unit) {
+    val running by ZeroClawRuntime.running.collectAsState()
+    Column(
+        Modifier.fillMaxSize().padding(32.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("ZeroClaw", style = MaterialTheme.typography.headlineMedium)
+        if (running) {
+            CircularProgressIndicator()
+            Text("Starting your agent…")
+        } else {
+            Text("The agent is not running.")
+            Button(onClick = onStart) { Text("Start agent") }
+            OutlinedButton(onClick = onShowLogs) { Text("View logs") }
         }
     }
 }
@@ -234,11 +236,12 @@ private fun LogsScreen() {
 }
 
 @Composable
-private fun ControlScreen(onStart: () -> Unit, onStop: () -> Unit) {
+private fun AppScreen(onStart: () -> Unit, onStop: () -> Unit, onReloadDashboard: () -> Unit) {
     val context = LocalContext.current
     val running by ZeroClawRuntime.running.collectAsState()
     val ready by ZeroClawRuntime.ready.collectAsState()
     var args by rememberSaveable { mutableStateOf("--help") }
+    val webViewLabel = remember { webViewLabel() }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -247,17 +250,13 @@ private fun ControlScreen(onStart: () -> Unit, onStop: () -> Unit) {
         Text("ZeroClaw Mobile", style = MaterialTheme.typography.headlineSmall)
         Text(
             when {
-                ready -> "Status: running, gateway ready"
-                running -> "Status: starting…"
-                else -> "Status: stopped"
+                ready -> "Agent: running"
+                running -> "Agent: starting…"
+                else -> "Agent: stopped"
             },
         )
-        Text(ZeroClawRuntime.describeBinary(context), style = MaterialTheme.typography.bodySmall)
-        val webView = remember { webViewInfo() }
-        Text("WebView: ${webView.label}", style = MaterialTheme.typography.bodySmall)
-
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onStart, enabled = !running) { Text("Start agent") }
+            Button(onClick = onStart, enabled = !running) { Text("Start") }
             Button(
                 onClick = onStop,
                 enabled = running,
@@ -265,7 +264,15 @@ private fun ControlScreen(onStart: () -> Unit, onStop: () -> Unit) {
             ) { Text("Stop") }
         }
 
-        Text("Troubleshooting: run a one-off command", style = MaterialTheme.typography.titleSmall)
+        Text("Dashboard", style = MaterialTheme.typography.titleSmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onReloadDashboard, enabled = ready) { Text("Reload") }
+            OutlinedButton(onClick = { openInBrowser(context) }, enabled = ready) { Text("Open in Chrome") }
+        }
+
+        Text("Diagnostics", style = MaterialTheme.typography.titleSmall)
+        Text(ZeroClawRuntime.describeBinary(context), style = MaterialTheme.typography.bodySmall)
+        Text("WebView: $webViewLabel", style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(
             value = args,
             onValueChange = { args = it },
@@ -273,28 +280,22 @@ private fun ControlScreen(onStart: () -> Unit, onStop: () -> Unit) {
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        OutlinedButton(onClick = { openInBrowser(context) }, enabled = ready) { Text("Open dashboard in Chrome") }
         OutlinedButton(onClick = {
             ZeroClawRuntime.runOnce(context, args.trim().split(Regex("\\s+")).filter { it.isNotEmpty() })
         }) { Text("Run once (output in Logs)") }
     }
 }
 
-private fun copyToClipboard(context: Context, text: String) {
-    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    cm.setPrimaryClip(ClipData.newPlainText("ZeroClaw logs", text))
-}
-
-private class WebViewInfo(val label: String, val tooOld: Boolean)
-
-/** The dashboard is built with Tailwind v4, which needs Chrome/WebView 111+. */
-private fun webViewInfo(): WebViewInfo {
-    val pkg = WebView.getCurrentWebViewPackage()
-    val version = pkg?.versionName ?: return WebViewInfo("unknown", false)
-    val major = version.substringBefore('.').toIntOrNull()
-    return WebViewInfo("${pkg.packageName} $version", major != null && major < 111)
+private fun webViewLabel(): String {
+    val pkg = WebView.getCurrentWebViewPackage() ?: return "unknown"
+    return "${pkg.packageName} ${pkg.versionName}"
 }
 
 private fun openInBrowser(context: Context) {
     CustomTabsIntent.Builder().build().launchUrl(context, ZeroClawRuntime.DASHBOARD_URL.toUri())
+}
+
+private fun copyToClipboard(context: Context, text: String) {
+    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    cm.setPrimaryClip(ClipData.newPlainText("ZeroClaw logs", text))
 }

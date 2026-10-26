@@ -17,7 +17,9 @@ as a local MCP server. A UniFFI facade crate is a possible later step, not the c
 - `scripts/fetch-zeroclaw.sh` downloads the release (set `ZEROCLAW_TAG` to pin) and stages the
   binary + `web/dist` dashboard. These are gitignored, never committed.
 - `ZeroClawRuntime` owns the child process, `ZeroClawService` is the dataSync foreground service,
-  `WebAssets` extracts the dashboard bundle, `ui/ZeroClawApp.kt` has the Dashboard/Logs/Control tabs.
+  `WebAssets` extracts the dashboard bundle, `ui/ZeroClawApp.kt` has the Agent (dashboard WebView)/Logs/App tabs.
+- The dashboard WebView must have MATCH_PARENT layoutParams: Compose's default WRAP_CONTENT breaks the
+  CSS viewport height (`vh`) and the dashboard renders blank. Keep it alive across tabs (don't recreate it).
 - Env passed to the process: `HOME`, `TMPDIR`, `ZEROCLAW_CONFIG_DIR`, `ZEROCLAW_gateway__web_dist_dir`.
 - Release builds are arm64-v8a only (ZeroClaw publishes no x86_64 Android binary), so the
   emulator needs an arm64 image or use a real device.

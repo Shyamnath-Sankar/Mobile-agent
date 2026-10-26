@@ -22,6 +22,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             ZeroClawApp(onStart = ::startAgent, onStop = ::stopAgent)
         }
+        // Start the agent as soon as the app opens, like any normal app.
+        if (savedInstanceState == null && !ZeroClawRuntime.running.value) startAgent()
     }
 
     private fun startAgent() {
