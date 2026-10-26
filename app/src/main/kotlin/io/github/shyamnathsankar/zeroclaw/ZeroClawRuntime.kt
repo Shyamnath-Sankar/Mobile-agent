@@ -149,6 +149,37 @@ object ZeroClawRuntime {
     private fun prepare(app: Context) {
         WebAssets.ensureExtracted(app)
         for (dir in listOf(homeDir(app), dataDir(app), app.cacheDir)) dir.mkdirs()
+        ensureSecretKey(File(dataDir(app), ".secret_key"))
+    }
+
+    /**
+     * ZeroClaw encrypts saved secrets (API keys) with a key in `<config dir>/.secret_key`. It creates that
+     * file by writing a temp file and hard-linking it into place, but Android does not let apps create
+     * hard links, so every secret save failed ("Failed to encrypt ..."). Provision the key ourselves in
+     * ZeroClaw's format: 32 random bytes as 64 lowercase hex chars, mode 0600, created exclusively.
+     */
+    private fun ensureSecretKey(file: File) {
+        if (file.exists()) return
+        val key = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
+        val hex = key.joinToString("") { "%02x".format(it) }.toByteArray()
+        val fd = try {
+            android.system.Os.open(
+                file.absolutePath,
+                android.system.OsConstants.O_CREAT or android.system.OsConstants.O_EXCL or android.system.OsConstants.O_WRONLY,
+                384, // 0600
+            )
+        } catch (e: android.system.ErrnoException) {
+            if (e.errno == android.system.OsConstants.EEXIST) return // created concurrently
+            log("[app] could not create secret key: ${e.message}")
+            return
+        }
+        try {
+            android.system.Os.write(fd, hex, 0, hex.size)
+            android.system.Os.fsync(fd)
+        } finally {
+            android.system.Os.close(fd)
+        }
+        log("[app] created ZeroClaw secret key")
     }
 
     private fun homeDir(app: Context) = File(app.filesDir, "home")
