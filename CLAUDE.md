@@ -32,6 +32,9 @@ as a local MCP server. A UniFFI facade crate is a possible later step, not the c
   dashboard / agent browser, never for sign-in.
 - Keep permissions minimal; every sensitive permission needs an in-app disclosure.
 - Gateway stays bound to loopback; never expose it on the network.
+- TODO before any public release: the gateway runs with `require_pairing=false` (so any local app can
+  reach 127.0.0.1:42617). Replace with automatic pairing (app obtains the token and hands it to the
+  dashboard) or another per-app authentication.
 
 ## Stack (target)
 
