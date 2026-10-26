@@ -26,6 +26,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -206,6 +208,35 @@ private fun BubbleView(b: Bubble, size: Dp, modifier: Modifier = Modifier) {
             contentDescription = b.label,
             tint = if (b.color == Zc.Forest) Zc.Sage else Zc.Ink,
             modifier = Modifier.size(size * 0.36f),
+        )
+    }
+}
+
+/** A hairline-separated row with a switch, styled to the sage palette. */
+@Composable
+fun ToggleRow(title: String, subtitle: String?, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = Zc.Ink)
+            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Zc.Muted)
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Zc.Sage,
+                checkedTrackColor = Zc.Ink,
+                uncheckedThumbColor = Zc.Ink,
+                uncheckedTrackColor = Zc.Paper,
+                uncheckedBorderColor = Zc.Ink,
+            ),
         )
     }
 }

@@ -16,13 +16,23 @@ as a local MCP server. A UniFFI facade crate is a possible later step, not the c
 
 - `scripts/fetch-zeroclaw.sh` downloads the release (set `ZEROCLAW_TAG` to pin) and stages the
   binary + `web/dist` dashboard. These are gitignored, never committed.
-- `ZeroClawRuntime` owns the child process, `ZeroClawService` is the dataSync foreground service,
+- `ZeroClawRuntime` owns the child process, `ZeroClawService` is the specialUse foreground service (see Background),
   `WebAssets` extracts the dashboard bundle, `ui/ZeroClawApp.kt` has the Agent (dashboard WebView)/Logs/App tabs.
 - The dashboard WebView must have MATCH_PARENT layoutParams: Compose's default WRAP_CONTENT breaks the
   CSS viewport height (`vh`) and the dashboard renders blank. Keep it alive across tabs (don't recreate it).
 - Env passed to the process: `HOME`, `TMPDIR`, `ZEROCLAW_CONFIG_DIR`, `ZEROCLAW_gateway__web_dist_dir`.
 - Release builds are arm64-v8a only (ZeroClaw publishes no x86_64 Android binary), so the
   emulator needs an arm64 image or use a real device.
+
+## Background and schedules (Play FGS policy: run only as long as needed, user-visible, stoppable)
+
+`background/AgentController` runs the daemon only while something holds it: `Ui` (app on screen, no
+FGS), `Grace` (3-minute "finishing up" specialUse FGS started from `onPause`), `Worker` (due cron jobs)
+or `AlwaysOn` (opt-in persistent specialUse FGS). ZeroClaw's cron is the source of truth: `AgentScheduler`
+reads `GET /api/cron`, books the earliest `next_run` via WorkManager (default, battery-friendly) or an exact
+alarm (opt-in, user-granted SCHEDULE_EXACT_ALARM; never USE_EXACT_ALARM), and `ScheduledRunWorker`
+starts the agent, waits until due jobs' `last_run` passes their due time (max 9 min), re-books, releases.
+No wakelocks, no REQUEST_IGNORE_BATTERY_OPTIMIZATIONS (only a link to the battery settings list).
 
 ## Design
 
@@ -48,7 +58,7 @@ Keep both in sync. Fonts are OFL (licences in `assets/zc-theme/`).
 
 ## Stack (target)
 
-Hilt, Room, WorkManager, kotlinx.serialization, a foreground service of type `dataSync` for running
+Hilt, Room, WorkManager, kotlinx.serialization, a foreground service of type `specialUse` for running
 tasks. The current spike uses none of these yet (single `app` module) and will be split into
 modules (core-agent, feature-chat, feature-browser, feature-terminal, feature-files, data) later.
 

@@ -7,7 +7,10 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.os.PowerManager
 import android.os.StatFs
+import android.provider.Settings
 import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
@@ -56,6 +59,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -73,9 +77,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.core.net.toUri
 import io.github.shyamnathsankar.zeroclaw.BuildConfig
 import io.github.shyamnathsankar.zeroclaw.ZeroClawRuntime
+import io.github.shyamnathsankar.zeroclaw.background.AgentPrefs
+import io.github.shyamnathsankar.zeroclaw.background.AgentScheduler
 import io.github.shyamnathsankar.zeroclaw.ui.theme.Zc
 import io.github.shyamnathsankar.zeroclaw.ui.theme.ZcTheme
 import kotlinx.coroutines.delay
@@ -87,7 +94,7 @@ private enum class Tab(val label: String, val icon: ImageVector) {
 }
 
 @Composable
-fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit) {
+fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit, onAlwaysOnChange: (Boolean) -> Unit) {
     ZcTheme {
         val context = LocalContext.current
         var tab by rememberSaveable { mutableStateOf(Tab.Agent) }
@@ -123,7 +130,7 @@ fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit) {
                     }
                     tab == Tab.Logs -> Surface(Modifier.fillMaxSize(), color = Zc.Sage) { LogsScreen() }
                     tab == Tab.App -> Surface(Modifier.fillMaxSize(), color = Zc.Sage) {
-                        AppScreen(onStart, onStop, onReloadDashboard = { webView.value?.reload() })
+                        AppScreen(onStart, onStop, onAlwaysOnChange, onReloadDashboard = { webView.value?.reload() })
                     }
                     else -> Unit
                 }
@@ -308,7 +315,12 @@ private fun LogsScreen() {
 }
 
 @Composable
-private fun AppScreen(onStart: () -> Unit, onStop: () -> Unit, onReloadDashboard: () -> Unit) {
+private fun AppScreen(
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onAlwaysOnChange: (Boolean) -> Unit,
+    onReloadDashboard: () -> Unit,
+) {
     val context = LocalContext.current
     val running by ZeroClawRuntime.running.collectAsState()
     val ready by ZeroClawRuntime.ready.collectAsState()
@@ -368,9 +380,9 @@ private fun AppScreen(onStart: () -> Unit, onStop: () -> Unit, onReloadDashboard
         Spacer(Modifier.height(28.dp))
         Hairline()
         if (running) {
-            ActionRow("Stop agent", "Ends the agent and its schedules", onClick = onStop)
+            ActionRow("Stop agent", "Stops it now. Scheduled jobs still wake it up.", onClick = onStop)
         } else {
-            ActionRow("Start agent", "Runs in the background with a notification", onClick = onStart)
+            ActionRow("Start agent", "Runs while the app is open", onClick = onStart)
         }
         Hairline()
         ActionRow("Reload dashboard", "Refresh the in-app dashboard", onClick = onReloadDashboard, enabled = ready)
@@ -383,6 +395,9 @@ private fun AppScreen(onStart: () -> Unit, onStop: () -> Unit, onReloadDashboard
             diagonal = true,
         )
         Hairline()
+
+        Spacer(Modifier.height(28.dp))
+        BackgroundSection(onAlwaysOnChange)
 
         Spacer(Modifier.height(28.dp))
         Text("Diagnostics", style = MaterialTheme.typography.headlineMedium, color = Zc.Ink)
@@ -457,4 +472,87 @@ private fun openInBrowser(context: Context) {
 private fun copyToClipboard(context: Context, text: String) {
     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     cm.setPrimaryClip(ClipData.newPlainText("ZeroClaw logs", text))
+}
+
+/** How the agent runs when the app is closed: schedules, exact timing, always-on, battery. */
+@Composable
+private fun BackgroundSection(onAlwaysOnChange: (Boolean) -> Unit) {
+    val context = LocalContext.current
+    val alwaysOn by AgentPrefs.alwaysOn.collectAsState()
+    val exact by AgentPrefs.exactTiming.collectAsState()
+    val nextWake by AgentPrefs.nextWakeAt.collectAsState()
+    // Re-read system permission state whenever the screen is shown again.
+    var refresh by remember { mutableIntStateOf(0) }
+    LifecycleResumeEffect(Unit) {
+        refresh++
+        onPauseOrDispose { }
+    }
+    val canExact = remember(refresh) { AgentScheduler.canUseExactAlarms(context) }
+    val unrestricted = remember(refresh) {
+        context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
+    }
+
+    Text("Background", style = MaterialTheme.typography.headlineMedium, color = Zc.Ink)
+    Text(
+        "The agent sleeps when you're not using it and wakes up for scheduled jobs, so it barely touches your battery.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = Zc.InkSoft,
+    )
+    Spacer(Modifier.height(12.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Pill(if (nextWake != null) "Next job" else "No jobs", if (nextWake != null) Zc.Mint else Zc.Paper)
+        Spacer(Modifier.width(12.dp))
+        Text(
+            nextWake?.let { formatWhen(it) } ?: "Create schedules in the dashboard (Automations)",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Zc.Ink,
+        )
+    }
+    Spacer(Modifier.height(8.dp))
+    Hairline()
+    ToggleRow(
+        title = "Exact timing",
+        subtitle = when {
+            exact && !canExact -> "Allow \"Alarms & reminders\" for this app to turn this on"
+            exact -> "Jobs run on the minute, even in Doze"
+            else -> "Off: Android batches wake-ups to save battery, jobs may run a few minutes late"
+        },
+        checked = exact && canExact,
+        onCheckedChange = { on ->
+            AgentPrefs.setExactTiming(context, on)
+            if (on && !canExact && Build.VERSION.SDK_INT >= 31) {
+                context.startActivity(
+                    Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, "package:${context.packageName}".toUri()),
+                )
+            }
+            AgentScheduler.rebook(context)
+        },
+    )
+    Hairline()
+    ToggleRow(
+        title = "Always on",
+        subtitle = "Keeps the agent running with a notification, for chat channels like Telegram. Uses more battery.",
+        checked = alwaysOn,
+        onCheckedChange = onAlwaysOnChange,
+    )
+    Hairline()
+    ActionRow(
+        "Battery settings",
+        if (unrestricted) "Unrestricted: background work is never paused" else "Optimized (recommended). Set to Unrestricted only if always-on gets stopped by your phone",
+        onClick = { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) },
+        diagonal = true,
+    )
+    Hairline()
+}
+
+private fun formatWhen(at: Long): String {
+    val zone = java.time.ZoneId.systemDefault()
+    val time = java.time.Instant.ofEpochMilli(at).atZone(zone)
+    val today = java.time.LocalDate.now(zone)
+    val pattern = when (time.toLocalDate()) {
+        today -> "'Today' HH:mm"
+        today.plusDays(1) -> "'Tomorrow' HH:mm"
+        else -> "EEE d MMM, HH:mm"
+    }
+    return time.format(java.time.format.DateTimeFormatter.ofPattern(pattern))
 }

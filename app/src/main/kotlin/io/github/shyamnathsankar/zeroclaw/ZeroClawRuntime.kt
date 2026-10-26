@@ -59,6 +59,7 @@ object ZeroClawRuntime {
         if (daemon?.isAlive == true) return
         val app = context.applicationContext
         prepare(app)
+        killOrphans()
         log("[app] starting: zeroclaw daemon --host $HOST -p $PORT")
         val process = launch(app, listOf("daemon", "--host", HOST, "-p", PORT.toString())) ?: return
         daemon = process
@@ -93,6 +94,39 @@ object ZeroClawRuntime {
         p.destroy()
         thread(isDaemon = true) {
             if (!p.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)) p.destroyForcibly()
+        }
+    }
+
+    /** Waits until the gateway accepts connections; false on timeout or if the daemon died. */
+    suspend fun awaitReady(timeoutMs: Long): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (_ready.value) return true
+            if (!_running.value) return false
+            kotlinx.coroutines.delay(250)
+        }
+        return _ready.value
+    }
+
+    /**
+     * A daemon left over from a previous app process still holds the port and the config lock,
+     * so a new one would fail to start. Only processes of this app's own uid can be signalled.
+     */
+    private fun killOrphans() {
+        val myUid = android.os.Process.myUid()
+        val myPid = android.os.Process.myPid()
+        File("/proc").listFiles()?.forEach { dir ->
+            val pid = dir.name.toIntOrNull() ?: return@forEach
+            if (pid == myPid) return@forEach
+            val cmdline = runCatching { File(dir, "cmdline").readText() }.getOrNull() ?: return@forEach
+            if (!cmdline.contains("libzeroclaw.so")) return@forEach
+            val uid = runCatching {
+                File(dir, "status").readLines().first { it.startsWith("Uid:") }.split(Regex("\\s+"))[1].toInt()
+            }.getOrNull()
+            if (uid == myUid) {
+                log("[app] stopping leftover zeroclaw process $pid")
+                android.os.Process.killProcess(pid)
+            }
         }
     }
 
