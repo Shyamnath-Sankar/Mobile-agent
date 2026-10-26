@@ -14,11 +14,23 @@ android {
         applicationId = "io.github.shyamnathsankar.zeroclaw"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        // CI passes the run number so every APK is a newer version than the last.
+        val build = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        versionCode = build
+        versionName = "0.1.$build"
 
         // ZeroClaw only publishes an aarch64 Android binary.
         ndk { abiFilters += "arm64-v8a" }
+    }
+
+    signingConfigs {
+        // Fixed debug key committed to the repo so every CI build can be installed over the previous one.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {

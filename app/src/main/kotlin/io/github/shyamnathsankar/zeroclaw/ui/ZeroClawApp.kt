@@ -387,6 +387,7 @@ private fun AppScreen(onStart: () -> Unit, onStop: () -> Unit, onReloadDashboard
         Spacer(Modifier.height(28.dp))
         Text("Diagnostics", style = MaterialTheme.typography.headlineMedium, color = Zc.Ink)
         Spacer(Modifier.height(8.dp))
+        Text("App version ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = Zc.InkSoft)
         Text(ZeroClawRuntime.describeBinary(context), style = MaterialTheme.typography.bodySmall, color = Zc.InkSoft)
         Text("WebView: ${remember { webViewLabel() }}", style = MaterialTheme.typography.bodySmall, color = Zc.InkSoft)
         Spacer(Modifier.height(12.dp))
