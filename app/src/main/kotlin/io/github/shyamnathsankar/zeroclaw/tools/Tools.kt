@@ -110,7 +110,7 @@ object Tools {
             }
             ToolResult("[$status]\n${o.output}", isError = o.timedOut || o.exitCode != 0)
         },
-    )
+    ) + FileTools.all
 
     fun find(name: String) = all.firstOrNull { it.name == name }
 

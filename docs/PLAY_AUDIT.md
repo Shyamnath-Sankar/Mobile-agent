@@ -31,6 +31,8 @@ Google Play Developer Program Policy (October 2026 PDF), and what the app does a
 | Browser cookies | Yes | Stored in app-private WebView storage | Persisted (incl. third-party for SSO); "Clear data" wipes them, keeping the dashboard login |
 | `web_fetch` | Yes | Network only | Kept; loopback/private networks blocked |
 | `run_command` | Yes (toybox `/system/bin/sh`) | Only system binaries in the app sandbox, nothing downloaded | Kept; destructive commands and commands leaving the workspace need approval; 300 s / 32 KB limits |
+| `create_pdf/docx/xlsx/pptx` | Yes (offline WebView) | pdfmake, docx, SheetJS, PptxGenJS and Noto fonts ship in the APK (`scripts/fetch-docgen.sh`); run as JavaScript in a WebView with network loads blocked and no JavaScript interface (the WebView exemption); nothing downloaded | Kept |
+| `create_file`, `deliver_file` | Yes | Copies to Downloads/ZeroClaw via MediaStore (Android 10+, no storage permission); Open/Share via a FileProvider limited to `files/outbox/`; apk/dex/so/jar/exe and similar types refused | Kept; card over the chat, notification when in the background, list in the App tab |
 | Python / Node / pip / npm | Not bundled | Runtime-loaded interpreted code must not enable violations; large binaries | Not included |
 
 ## ZeroClaw built-in tools

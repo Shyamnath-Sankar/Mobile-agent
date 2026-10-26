@@ -11,3 +11,6 @@ captures/
 app/src/main/jniLibs/
 app/src/main/assets/web-dist/
 app/src/main/assets/zeroclaw-release.txt
+
+# Fetched by scripts/fetch-docgen.sh (document-tool JavaScript libraries)
+app/src/main/assets/docgen/lib/

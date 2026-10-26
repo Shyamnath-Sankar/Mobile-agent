@@ -30,3 +30,11 @@ internal fun intProp(description: String) = JSONObject().put("type", "integer").
 internal fun boolProp(description: String) = JSONObject().put("type", "boolean").put("description", description)
 internal fun enumProp(description: String, vararg values: String) =
     JSONObject().put("type", "string").put("description", description).put("enum", org.json.JSONArray(values.toList()))
+internal fun arrayProp(description: String, items: JSONObject) =
+    JSONObject().put("type", "array").put("description", description).put("items", items)
+internal fun objectProp(description: String, vararg props: Pair<String, JSONObject>, required: List<String> = emptyList()) =
+    JSONObject()
+        .put("type", "object")
+        .put("description", description)
+        .put("properties", JSONObject().apply { props.forEach { (k, v) -> put(k, v) } })
+        .put("required", org.json.JSONArray(required))

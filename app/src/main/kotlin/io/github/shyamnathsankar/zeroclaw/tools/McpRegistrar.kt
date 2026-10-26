@@ -66,8 +66,11 @@ object McpRegistrar {
             patch(ops)
             ZeroClawRuntime.appLog("[app] phone tools granted to ${ops.length()} more agent(s); start a new conversation to use them")
         }
-        val agents = (0 until entries.length()).count { Regex("""^agents\.[^.]+\.mcp_bundles$""").matches(entries.getJSONObject(it).optString("path")) }
-        _status.value = if (agents == 0) "Ready (no agents yet)" else "Ready for $agents agent(s)"
+        val aliases = (0 until entries.length()).mapNotNull {
+            Regex("""^agents\.([^.]+)\.mcp_bundles$""").find(entries.getJSONObject(it).optString("path"))?.groupValues?.get(1)
+        }
+        aliases.forEach { AgentNotes.ensure(context, it) }
+        _status.value = if (aliases.isEmpty()) "Ready (no agents yet)" else "Ready for ${aliases.size} agent(s): ${aliases.joinToString()}"
     }
 
     private fun replace(path: String, value: Any) = JSONObject().put("op", "replace").put("path", path).put("value", value)

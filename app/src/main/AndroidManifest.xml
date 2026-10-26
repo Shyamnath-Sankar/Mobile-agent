@@ -52,5 +52,16 @@
         <receiver
             android:name=".tools.ApprovalReceiver"
             android:exported="false" />
+
+        <!-- Lets other apps open or receive (Share) files the agent made; nothing else in app storage. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

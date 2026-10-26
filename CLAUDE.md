@@ -41,7 +41,11 @@ No wakelocks, no REQUEST_IGNORE_BATTERY_OPTIMIZATIONS (only a link to the batter
 bundle `mcp_bundles.phone`, granted to every agent; ZeroClaw sees the tools as `android__<name>`.
 Tools (`tools/Tools.kt`): browser_navigate/snapshot/click/type/scroll/back/wait/screenshot/handoff (one shared WebView driven only via
 evaluateJavascript, never addJavascriptInterface; live in the Browser tab), web_fetch, run_command
-(`/system/bin/sh` in `files/workspace`, no downloads). `UrlGuard` blocks loopback/private hosts.
+(`/system/bin/sh` in `files/workspace`, no downloads), create_pdf/docx/xlsx/pptx (`DocEngine`: bundled JS libraries in an
+offline WebView, `assets/docgen`, staged by `scripts/fetch-docgen.sh`), create_file and deliver_file. Every file the agent
+makes goes through `files/Outbox` (Downloads/ZeroClaw copy, card over the chat with Open/Share, App tab list).
+`AgentNotes` keeps a marked section at the top of each agent's workspace `TOOLS.md` (injected into its system prompt)
+telling it about the phone tools; without it models claim they can't browse or make files. `UrlGuard` blocks loopback/private hosts.
 Risky actions (submits, sign-ins, payments, secret fields, destructive commands) go through `Approvals`
 (in-app dialog + notification, deny on 2-minute timeout).
 

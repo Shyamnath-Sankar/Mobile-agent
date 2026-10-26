@@ -80,6 +80,9 @@ jobs:
           ZEROCLAW_BINARY: zeroclaw-bin/zeroclaw
         run: bash scripts/fetch-zeroclaw.sh
 
+      - name: Stage document libraries (PDF, Word, Excel, PowerPoint)
+        run: bash scripts/fetch-docgen.sh
+
       - name: Build debug APK
         run: ./gradlew --no-daemon --stacktrace assembleDebug
 

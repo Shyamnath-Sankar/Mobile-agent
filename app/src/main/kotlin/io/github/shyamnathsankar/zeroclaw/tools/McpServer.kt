@@ -21,7 +21,7 @@ import org.json.JSONObject
 object McpServer {
     const val PORT = 42618
     private const val PROTOCOL_VERSION = "2025-06-18"
-    private const val MAX_BODY = 1 * 1024 * 1024
+    private const val MAX_BODY = 8 * 1024 * 1024 // documents can carry embedded images
 
     @Volatile private var socket: ServerSocket? = null
     private lateinit var app: Context

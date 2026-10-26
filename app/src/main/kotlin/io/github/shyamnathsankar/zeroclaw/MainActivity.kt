@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import io.github.shyamnathsankar.zeroclaw.background.AgentController
 import io.github.shyamnathsankar.zeroclaw.background.AgentController.Hold
 import io.github.shyamnathsankar.zeroclaw.background.AgentPrefs
+import io.github.shyamnathsankar.zeroclaw.files.Outbox
 import io.github.shyamnathsankar.zeroclaw.tools.Handoff
 import io.github.shyamnathsankar.zeroclaw.ui.AppNav
 import io.github.shyamnathsankar.zeroclaw.ui.ZeroClawApp
@@ -29,6 +30,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         AgentPrefs.load(this)
         Appearance.load(this)
+        Outbox.load(this)
         // Transparent bars; icon colour follows the light/dark palette (ZeroClawApp updates it on change).
         val bars = if (Zc.dark) {
             SystemBarStyle.dark(Color.TRANSPARENT)

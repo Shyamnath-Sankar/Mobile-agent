@@ -176,6 +176,9 @@ fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit, onAlwaysOnChange: (Bool
                     }
                     else -> Unit
                 }
+
+                // A file the agent just made, with Open and Share, right over the chat.
+                FreshFileCard(Modifier.align(Alignment.TopCenter).statusBarsPadding())
             }
         }
         ApprovalDialog()
@@ -507,6 +510,9 @@ private fun AppScreen(
         if (reporting) ReportDialog(onDismiss = { reporting = false })
         ActionRow("Privacy policy", "What stays on your phone and what is sent where", onClick = { PrivacyUi.openPolicy() })
         Hairline()
+
+        Spacer(Modifier.height(28.dp))
+        FilesSection()
 
         Spacer(Modifier.height(28.dp))
         AppearanceSection()

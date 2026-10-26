@@ -15,6 +15,7 @@ The app stores the following only in its private storage on your device:
 - Agent settings, agents you create, schedules, skills and procedures.
 - Conversation history and the agent's memory.
 - Files in the agent's workspace (files the agent or you create there).
+- Files the agent makes for you (for example PDF, Word, Excel or PowerPoint files). On Android 10 and later a copy is also saved to your phone's Downloads/ZeroClaw folder, where it stays until you delete it. They leave your phone only if you share them.
 - API keys and tokens you enter, stored encrypted.
 - Browser data from the app's built-in browser (cookies, cache, history).
 - App logs, used only for troubleshooting on the device.
