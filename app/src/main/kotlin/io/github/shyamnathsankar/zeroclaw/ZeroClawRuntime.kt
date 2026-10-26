@@ -102,6 +102,8 @@ object ZeroClawRuntime {
         }
     }
 
+    fun appLog(line: String) = log(line)
+
     fun clearLogs() = _logs.update { emptyList() }
 
     private fun prepare(app: Context) {

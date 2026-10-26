@@ -6,9 +6,12 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.webkit.ConsoleMessage
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,6 +56,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.shyamnathsankar.zeroclaw.ZeroClawRuntime
 
@@ -124,13 +128,28 @@ private fun DashboardScreen() {
     }
 
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+        val context = LocalContext.current
+        val webView = remember { webViewInfo() }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Text(
                 "ZeroClaw dashboard",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.weight(1f).align(Alignment.CenterVertically),
             )
+            OutlinedButton(onClick = { openInBrowser(context) }) { Text("Open in Chrome") }
             OutlinedButton(onClick = { reloadKey++ }) { Text("Reload") }
+        }
+        if (webView.tooOld) {
+            Text(
+                "Your WebView (${webView.label}) is older than the dashboard needs (Chrome 111+). " +
+                    "Update \"Android System WebView\" in Play Store, or use Open in Chrome.",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            )
         }
         androidx.compose.runtime.key(reloadKey) {
             AndroidView(
@@ -151,6 +170,14 @@ private fun DashboardScreen() {
                             }
 
                             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) = Unit
+                        }
+                        webChromeClient = object : WebChromeClient() {
+                            override fun onConsoleMessage(m: ConsoleMessage): Boolean {
+                                if (m.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                                    ZeroClawRuntime.appLog("[web] ${m.message()} (${m.sourceId()}:${m.lineNumber()})")
+                                }
+                                return true
+                            }
                         }
                         loadUrl(ZeroClawRuntime.DASHBOARD_URL)
                     }
@@ -205,6 +232,8 @@ private fun ControlScreen(onStart: () -> Unit, onStop: () -> Unit) {
             },
         )
         Text(ZeroClawRuntime.describeBinary(context), style = MaterialTheme.typography.bodySmall)
+        val webView = remember { webViewInfo() }
+        Text("WebView: ${webView.label}", style = MaterialTheme.typography.bodySmall)
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onStart, enabled = !running) { Text("Start agent") }
@@ -223,6 +252,7 @@ private fun ControlScreen(onStart: () -> Unit, onStop: () -> Unit) {
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
+        OutlinedButton(onClick = { openInBrowser(context) }, enabled = ready) { Text("Open dashboard in Chrome") }
         OutlinedButton(onClick = {
             ZeroClawRuntime.runOnce(context, args.trim().split(Regex("\\s+")).filter { it.isNotEmpty() })
         }) { Text("Run once (output in Logs)") }
@@ -232,4 +262,18 @@ private fun ControlScreen(onStart: () -> Unit, onStop: () -> Unit) {
 private fun copyToClipboard(context: Context, text: String) {
     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     cm.setPrimaryClip(ClipData.newPlainText("ZeroClaw logs", text))
+}
+
+private class WebViewInfo(val label: String, val tooOld: Boolean)
+
+/** The dashboard is built with Tailwind v4, which needs Chrome/WebView 111+. */
+private fun webViewInfo(): WebViewInfo {
+    val pkg = WebView.getCurrentWebViewPackage()
+    val version = pkg?.versionName ?: return WebViewInfo("unknown", false)
+    val major = version.substringBefore('.').toIntOrNull()
+    return WebViewInfo("${pkg.packageName} $version", major != null && major < 111)
+}
+
+private fun openInBrowser(context: Context) {
+    CustomTabsIntent.Builder().build().launchUrl(context, ZeroClawRuntime.DASHBOARD_URL.toUri())
 }
