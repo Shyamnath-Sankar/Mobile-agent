@@ -2,10 +2,15 @@
 
 package io.github.shyamnathsankar.zeroclaw.ui.theme
 
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
@@ -17,21 +22,36 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import io.github.shyamnathsankar.zeroclaw.R
 
-/** Palette: sage paper, ink type, pastel accents. Shared with assets/zc-theme/theme.css. */
+/**
+ * Palette: sage paper, ink type, pastel accents (light) or ink-green paper with sage type (dark).
+ * Shared with assets/zc-theme/theme.css. Reading a colour inside a composable subscribes to [dark],
+ * so switching appearance recomposes the whole UI.
+ */
 object Zc {
-    val Sage = Color(0xFFDDE1DA)
-    val Paper = Color(0xFFE7EAE4)
-    val PaperDeep = Color(0xFFD2D7CF)
-    val Ink = Color(0xFF0F100D)
-    val InkSoft = Color(0xFF363932)
-    val Muted = Color(0xFF5E625A)
-    val Hairline = Color(0x260F100D)
+    var dark by mutableStateOf(false)
+
+    private fun pick(light: Long, dark: Long) = Color(if (this.dark) dark else light)
+
+    val Sage get() = pick(0xFFDDE1DA, 0xFF121411)
+    val Paper get() = pick(0xFFE7EAE4, 0xFF1B1E19)
+    val PaperDeep get() = pick(0xFFD2D7CF, 0xFF252922)
+    val Ink get() = pick(0xFF0F100D, 0xFFE8EBE4)
+    val InkSoft get() = pick(0xFF363932, 0xFFC3C8BD)
+    val Muted get() = pick(0xFF5E625A, 0xFF8E9488)
+    val Hairline get() = pick(0x260F100D, 0x26E8EBE4)
+    val Forest get() = pick(0xFF3D7A4E, 0xFF6FBF85)
+    val Error get() = pick(0xFFC8423B, 0xFFE06A62)
+
+    // Pastels and the text drawn on them look the same in both modes.
     val Lilac = Color(0xFFD8B4F6)
     val Mint = Color(0xFFA8D9B8)
-    val Forest = Color(0xFF3D7A4E)
     val Butter = Color(0xFFEFE35D)
     val Apricot = Color(0xFFF6A067)
-    val Error = Color(0xFFC8423B)
+    val OnPastel = Color(0xFF0F100D)
+
+    /** The terminal is always a dark console. */
+    val Console = Color(0xFF0F100D)
+    val ConsoleText = Color(0xFFDDE1DA)
 }
 
 private fun manrope(weight: Int) = Font(
@@ -63,25 +83,30 @@ private val ZcTypography = Typography(
     labelSmall = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, lineHeight = 14.sp),
 )
 
-private val ZcColors = lightColorScheme(
-    primary = Zc.Ink,
-    onPrimary = Zc.Sage,
-    secondary = Zc.Forest,
-    onSecondary = Zc.Sage,
-    tertiary = Zc.Lilac,
-    background = Zc.Sage,
-    onBackground = Zc.Ink,
-    surface = Zc.Sage,
-    onSurface = Zc.Ink,
-    surfaceVariant = Zc.Paper,
-    onSurfaceVariant = Zc.Muted,
-    surfaceContainer = Zc.Paper,
-    outline = Zc.Hairline,
-    outlineVariant = Zc.Hairline,
-    error = Zc.Error,
-)
+private fun zcColors(dark: Boolean): ColorScheme {
+    val base = if (dark) darkColorScheme() else lightColorScheme()
+    return base.copy(
+        primary = Zc.Ink,
+        onPrimary = Zc.Sage,
+        secondary = Zc.Forest,
+        onSecondary = Zc.Sage,
+        tertiary = Zc.Lilac,
+        background = Zc.Sage,
+        onBackground = Zc.Ink,
+        surface = Zc.Sage,
+        onSurface = Zc.Ink,
+        surfaceVariant = Zc.Paper,
+        onSurfaceVariant = Zc.Muted,
+        surfaceContainer = Zc.Paper,
+        surfaceContainerHigh = Zc.Paper,
+        surfaceContainerHighest = Zc.PaperDeep,
+        outline = Zc.Hairline,
+        outlineVariant = Zc.Hairline,
+        error = Zc.Error,
+    )
+}
 
 @Composable
 fun ZcTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = ZcColors, typography = ZcTypography, content = content)
+    MaterialTheme(colorScheme = zcColors(Zc.dark), typography = ZcTypography, content = content)
 }

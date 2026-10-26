@@ -28,7 +28,6 @@
 }
 
 :root, :root[class], :root[data-theme], html {
-  color-scheme: light !important;
 
   --zc-sage: #dde1da;
   --zc-paper: #e7eae4;
@@ -178,4 +177,85 @@ div:has(> textarea[rows="1"]) > button:has(.lucide-square) {
 div:has(> textarea[rows="1"]) > button:has(.lucide-image-plus) {
   background: transparent !important;
   color: var(--zc-ink) !important;
+}
+
+/* Never let the page drift sideways on a phone: <main> scrolls vertically only, and the chat
+   toolbar (agent / files / conversation / model pickers) wraps instead of overflowing. */
+main {
+  overflow-x: hidden !important;
+}
+main div.flex.items-center.justify-between.px-4.py-2.border-b {
+  flex-wrap: wrap !important;
+  row-gap: 6px !important;
+}
+main div.flex.items-center.justify-between.px-4.py-2.border-b > div.flex.items-center {
+  flex-wrap: wrap !important;
+  min-width: 0 !important;
+  row-gap: 6px !important;
+}
+
+/*
+ * Dark palette: ink-green paper with soft sage type. Applies whenever the dashboard resolves to a dark
+ * scheme (its Theme Mode writes `color-scheme: dark` inline on <html>); the app keeps that setting in
+ * sync with its own Appearance choice.
+ */
+:root[style*="color-scheme: dark"] {
+  color-scheme: dark !important;
+
+  --zc-sage: #121411;
+  --zc-paper: #1b1e19;
+  --zc-ink: #e8ebe4;
+
+  --pc-bg-base: #121411 !important;
+  --pc-bg-surface: #181b16 !important;
+  --pc-bg-elevated: #1f231d !important;
+  --pc-bg-input: #1b1e19 !important;
+  --pc-bg-code: #0d0f0c !important;
+  --pc-bg-sidebar: rgba(18, 20, 17, 0.97) !important;
+  --pc-bg-surface-subtle: #161915 !important;
+  --pc-bg-surface-elevated: #252922 !important;
+
+  --pc-border: rgba(232, 235, 228, 0.10) !important;
+  --pc-border-strong: rgba(232, 235, 228, 0.18) !important;
+
+  --pc-text-primary: #e8ebe4 !important;
+  --pc-text-secondary: #c3c8bd !important;
+  --pc-text-muted: #8e9488 !important;
+  --pc-text-faint: #666c60 !important;
+
+  --pc-accent: #6fbf85 !important;
+  --pc-accent-light: #8fd3a1 !important;
+  --pc-accent-dim: rgba(111, 191, 133, 0.35) !important;
+  --pc-accent-glow: rgba(111, 191, 133, 0.12) !important;
+  --pc-accent-rgb: 111, 191, 133 !important;
+  --pc-text-link: #8fd3a1 !important;
+  --pc-focus: #e8ebe4 !important;
+
+  --pc-hover: rgba(232, 235, 228, 0.06) !important;
+  --pc-hover-strong: rgba(232, 235, 228, 0.10) !important;
+  --pc-separator: rgba(232, 235, 228, 0.08) !important;
+  --pc-scrollbar-thumb: #3a3f36 !important;
+  --pc-scrollbar-thumb-hover: #4c5247 !important;
+  --pc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4) !important;
+  --pc-shadow-md: 0 6px 24px rgba(0, 0, 0, 0.45) !important;
+
+  --color-status-success: #6fbf85 !important;
+  --color-status-warning: #e8a25a !important;
+  --color-status-error: #e06a62 !important;
+  --color-status-info: #b48ee6 !important;
+}
+:root[style*="color-scheme: dark"] div:has(> textarea[rows="1"]) {
+  border-color: rgba(232, 235, 228, 0.14) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35) !important;
+}
+:root[style*="color-scheme: dark"] div:has(> textarea[rows="1"]) > button:has(.lucide-send):disabled {
+  background: #3a3f36 !important;
+}
+:root[style*="color-scheme: dark"] div:has(> textarea[rows="1"]) > button:has(.lucide-square) {
+  color: #0f100d !important;
+}
+:root[style*="color-scheme: dark"] .rounded-full.bg-pc-accent\/10,
+:root[style*="color-scheme: dark"] .rounded-full.bg-pc-accent\/15,
+:root[style*="color-scheme: dark"] .rounded-full.bg-pc-accent\/20 {
+  color: #0f100d !important;
 }

@@ -86,17 +86,17 @@ fun BrowserScreen() {
                         .background(Zc.Lilac)
                         .padding(16.dp),
                 ) {
-                    Text("Your turn", style = MaterialTheme.typography.titleMedium, color = Zc.Ink)
-                    Text(h.message, style = MaterialTheme.typography.bodyMedium, color = Zc.Ink)
+                    Text("Your turn", style = MaterialTheme.typography.titleMedium, color = Zc.OnPastel)
+                    Text(h.message, style = MaterialTheme.typography.bodyMedium, color = Zc.OnPastel)
                     Text(
                         "Do it in the page below; the agent waits and can't see what you type.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Zc.InkSoft,
+                        color = Zc.OnPastel.copy(alpha = 0.75f),
                     )
                     Spacer(Modifier.height(10.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Pill("Done, continue", Zc.Mint, onClick = { Handoff.finish(true) })
-                        OutlinePill("Cancel", onClick = { Handoff.finish(false) })
+                        Pill("Cancel", Zc.Paper, onClick = { Handoff.finish(false) })
                     }
                 }
             }
@@ -191,7 +191,7 @@ fun TerminalScreen() {
                 .weight(1f)
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(Zc.Ink)
+                .background(Zc.Console)
                 .padding(14.dp),
         ) {
             if (entries.isEmpty()) {
@@ -210,7 +210,7 @@ fun TerminalScreen() {
                         color = if (e.byAgent) Zc.Lilac else Zc.Mint,
                     )
                     if (e.output.isNotBlank()) {
-                        Text(e.output.trimEnd(), fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 15.sp, color = Zc.Sage)
+                        Text(e.output.trimEnd(), fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 15.sp, color = Zc.ConsoleText)
                     }
                     Text("[${e.status}]", fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = Zc.Muted)
                 }

@@ -66,7 +66,9 @@ fun Pill(text: String, color: Color, modifier: Modifier = Modifier, onClick: (()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 14.dp, vertical = 7.dp),
     ) {
-        Text(text, style = MaterialTheme.typography.labelMedium, color = Zc.Ink)
+        // Pastels keep dark text in both modes; neutral paper pills follow the ink colour.
+        val neutral = color == Zc.Paper || color == Zc.Sage || color == Zc.PaperDeep
+        Text(text, style = MaterialTheme.typography.labelMedium, color = if (neutral) Zc.Ink else Zc.OnPastel)
     }
 }
 
@@ -206,7 +208,7 @@ private fun BubbleView(b: Bubble, size: Dp, modifier: Modifier = Modifier) {
         Icon(
             b.icon,
             contentDescription = b.label,
-            tint = if (b.color == Zc.Forest) Zc.Sage else Zc.Ink,
+            tint = if (b.color == Zc.Forest) Zc.Sage else Zc.OnPastel,
             modifier = Modifier.size(size * 0.36f),
         )
     }

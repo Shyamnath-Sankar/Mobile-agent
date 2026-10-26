@@ -14,7 +14,11 @@ import androidx.core.content.ContextCompat
 import io.github.shyamnathsankar.zeroclaw.background.AgentController
 import io.github.shyamnathsankar.zeroclaw.background.AgentController.Hold
 import io.github.shyamnathsankar.zeroclaw.background.AgentPrefs
+import io.github.shyamnathsankar.zeroclaw.tools.Handoff
+import io.github.shyamnathsankar.zeroclaw.ui.AppNav
 import io.github.shyamnathsankar.zeroclaw.ui.ZeroClawApp
+import io.github.shyamnathsankar.zeroclaw.ui.theme.Appearance
+import io.github.shyamnathsankar.zeroclaw.ui.theme.Zc
 
 class MainActivity : ComponentActivity() {
 
@@ -24,11 +28,14 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AgentPrefs.load(this)
-        // Light sage UI: dark status/navigation bar icons on transparent bars.
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
-        )
+        Appearance.load(this)
+        // Transparent bars; icon colour follows the light/dark palette (ZeroClawApp updates it on change).
+        val bars = if (Zc.dark) {
+            SystemBarStyle.dark(Color.TRANSPARENT)
+        } else {
+            SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+        }
+        enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
         setContent {
             ZeroClawApp(
                 onStart = { AgentController.userStart(this) },
@@ -41,6 +48,21 @@ class MainActivity : ComponentActivity() {
         ) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+    }
+
+    private var stoppedAt = 0L
+
+    override fun onStop() {
+        super.onStop()
+        stoppedAt = System.currentTimeMillis()
+    }
+
+    override fun onRestart() {
+        super.onRestart()
+        // Coming back to the app after a while opens the Agent tab. Quick trips to a settings screen or a file
+        // picker keep the current tab, and so does a browser hand-off the agent is waiting on.
+        val away = System.currentTimeMillis() - stoppedAt
+        if (away > 30_000 && Handoff.pending.value == null) AppNav.showAgent()
     }
 
     override fun onResume() {

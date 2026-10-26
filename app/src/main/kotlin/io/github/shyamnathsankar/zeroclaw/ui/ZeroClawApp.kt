@@ -17,7 +17,10 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -92,6 +95,7 @@ import io.github.shyamnathsankar.zeroclaw.background.AgentPrefs
 import io.github.shyamnathsankar.zeroclaw.background.AgentScheduler
 import io.github.shyamnathsankar.zeroclaw.tools.Handoff
 import io.github.shyamnathsankar.zeroclaw.tools.McpRegistrar
+import io.github.shyamnathsankar.zeroclaw.ui.theme.Appearance
 import io.github.shyamnathsankar.zeroclaw.ui.theme.Zc
 import io.github.shyamnathsankar.zeroclaw.ui.theme.ZcTheme
 import kotlinx.coroutines.delay
@@ -123,6 +127,21 @@ fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit, onAlwaysOnChange: (Bool
             if (dashboardCreated) webView.value?.reload() else dashboardCreated = true
             tab = Tab.Agent
         }
+
+        // Status and navigation bar icons follow the light/dark palette.
+        val dark = Zc.dark
+        LaunchedEffect(dark) {
+            val style = if (dark) {
+                SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+            } else {
+                SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+            }
+            (context as? ComponentActivity)?.enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+        }
+
+        // Reopening the app lands on the Agent tab.
+        val openAgent by AppNav.openAgent.collectAsState()
+        LaunchedEffect(openAgent) { if (openAgent > 0) tab = Tab.Agent }
 
         // When the agent hands the browser to the user (e.g. to sign in), bring the Browser tab forward.
         val handoff by Handoff.pending.collectAsState()
@@ -204,6 +223,17 @@ private fun BottomTabs(selected: Tab, onSelect: (Tab) -> Unit) {
 @Composable
 private fun DashboardWebView(holder: MutableState<WebView?>, token: String?, modifier: Modifier) {
     val currentToken by rememberUpdatedState(token)
+    val context = LocalContext.current
+    val dark = Zc.dark
+    // Keep the dashboard's Theme Mode and the app's Appearance in step, both ways.
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1_500)
+            val w = holder.value ?: continue
+            val scheme = w.evalString("(function(){return document.documentElement.style.colorScheme||''})()")
+            if (scheme == "light" || scheme == "dark") syncDashboardTheme(context, w, scheme)
+        }
+    }
     AndroidView(
         modifier = modifier.statusBarsPadding(),
         factory = { ctx ->
@@ -249,15 +279,51 @@ private fun DashboardWebView(holder: MutableState<WebView?>, token: String?, mod
                         return true
                     }
                 }
-                loadUrl(ZeroClawRuntime.DASHBOARD_URL)
+                // Open on the agents / chat page rather than the overview.
+                loadUrl(ZeroClawRuntime.DASHBOARD_URL + "agents")
                 holder.value = this
             }
         },
+        update = { it.setBackgroundColor(if (dark) 0xFF121411.toInt() else 0xFFDDE1DA.toInt()) },
         onRelease = {
             holder.value = null
             it.destroy()
         },
     )
+}
+
+/**
+ * Two-way sync of light/dark between the app and the dashboard. The dashboard shows its resolved scheme as
+ * an inline `color-scheme` on <html>; if it differs from what the app last wrote, the user changed it in the
+ * dashboard and the app follows. Otherwise the app writes its own choice into the dashboard's stored theme.
+ */
+private fun syncDashboardTheme(context: Context, view: WebView, scheme: String) {
+    val last = Appearance.lastSyncedScheme(context)
+    val desired = if (Appearance.resolvesDark(context)) "dark" else "light"
+    when {
+        last != null && scheme != last -> {
+            Appearance.set(context, if (scheme == "dark") Appearance.Mode.Dark else Appearance.Mode.Light)
+            Appearance.setLastSyncedScheme(context, scheme)
+        }
+        scheme != desired -> {
+            Appearance.setLastSyncedScheme(context, desired)
+            view.evaluateJavascript(
+                "(function(m){var k='zeroclaw-theme',s={};try{s=JSON.parse(localStorage.getItem(k))||{}}catch(e){}" +
+                    "s.theme=m;s.colorTheme=(m==='light'?'operator-light':'operator-dark');if(!s.accent)s.accent='emerald';" +
+                    "localStorage.setItem(k,JSON.stringify(s));location.reload();return 'ok';})('$desired')",
+                null,
+            )
+        }
+        last == null -> Appearance.setLastSyncedScheme(context, desired)
+    }
+}
+
+/** evaluateJavascript as a suspend call returning the JS string result ("" if none). */
+private suspend fun WebView.evalString(js: String): String = kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+    evaluateJavascript(js) { raw ->
+        val value = runCatching { org.json.JSONTokener(raw).nextValue() as? String }.getOrNull().orEmpty()
+        if (cont.isActive) cont.resumeWith(Result.success(value))
+    }
 }
 
 @Composable
@@ -443,6 +509,9 @@ private fun AppScreen(
         Hairline()
 
         Spacer(Modifier.height(28.dp))
+        AppearanceSection()
+
+        Spacer(Modifier.height(28.dp))
         BackgroundSection(onAlwaysOnChange)
 
         Spacer(Modifier.height(28.dp))
@@ -615,4 +684,37 @@ private fun formatWhen(at: Long): String {
         else -> "EEE d MMM, HH:mm"
     }
     return time.format(java.time.format.DateTimeFormatter.ofPattern(pattern))
+}
+
+/** Light / dark choice for the whole app, dashboard included. */
+@Composable
+private fun AppearanceSection() {
+    val context = LocalContext.current
+    val mode by Appearance.mode.collectAsState()
+    Text("Appearance", style = MaterialTheme.typography.headlineMedium, color = Zc.Ink)
+    Spacer(Modifier.height(10.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Appearance.Mode.entries.forEach { m ->
+            val selected = m == mode
+            Box(
+                Modifier
+                    .clip(CircleShape)
+                    .background(if (selected) Zc.Ink else Zc.Paper)
+                    .clickable { Appearance.set(context, m) }
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
+            ) {
+                Text(m.name, style = MaterialTheme.typography.labelLarge, color = if (selected) Zc.Sage else Zc.Ink)
+            }
+        }
+    }
+}
+
+/** Navigation requests from outside the composition (e.g. reopening the app). */
+object AppNav {
+    private val _openAgent = kotlinx.coroutines.flow.MutableStateFlow(0)
+    val openAgent: kotlinx.coroutines.flow.StateFlow<Int> = _openAgent
+
+    fun showAgent() {
+        _openAgent.value++
+    }
 }
