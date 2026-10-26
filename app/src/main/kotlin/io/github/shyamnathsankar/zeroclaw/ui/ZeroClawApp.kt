@@ -68,7 +68,7 @@ fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit) {
         var tab by rememberSaveable { mutableStateOf(Tab.Control) }
         val ready by ZeroClawRuntime.ready.collectAsState()
 
-        // Jump to the dashboard the first time the gateway comes up.
+        // Jump to the dashboard tab the first time the gateway comes up.
         LaunchedEffect(ready) { if (ready) tab = Tab.Dashboard }
 
         Scaffold(
@@ -111,6 +111,7 @@ private fun DashboardScreen() {
     val ready by ZeroClawRuntime.ready.collectAsState()
     val running by ZeroClawRuntime.running.collectAsState()
     var reloadKey by remember { mutableIntStateOf(0) }
+    var inApp by rememberSaveable { mutableStateOf(false) }
 
     if (!ready) {
         Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
@@ -127,9 +128,29 @@ private fun DashboardScreen() {
         return
     }
 
+    val context = LocalContext.current
+    val webView = remember { webViewInfo() }
+
+    // The dashboard renders in Chrome but not in some devices' WebView, so Chrome is the default.
+    if (!inApp) {
+        Column(
+            Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+        ) {
+            Text("ZeroClaw is running", style = MaterialTheme.typography.titleLarge)
+            Text("Open the dashboard in Chrome to set up your provider and chat. The agent keeps running in the background.")
+            Button(onClick = { openInBrowser(context) }, modifier = Modifier.fillMaxWidth()) {
+                Text("Open dashboard")
+            }
+            OutlinedButton(onClick = { inApp = true }, modifier = Modifier.fillMaxWidth()) {
+                Text("Try in-app view (may not render)")
+            }
+            Text("WebView: ${webView.label}", style = MaterialTheme.typography.bodySmall)
+        }
+        return
+    }
+
     Column(Modifier.fillMaxSize()) {
-        val context = LocalContext.current
-        val webView = remember { webViewInfo() }
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -139,7 +160,7 @@ private fun DashboardScreen() {
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.weight(1f).align(Alignment.CenterVertically),
             )
-            OutlinedButton(onClick = { openInBrowser(context) }) { Text("Open in Chrome") }
+            OutlinedButton(onClick = { inApp = false }) { Text("Back") }
             OutlinedButton(onClick = { reloadKey++ }) { Text("Reload") }
         }
         if (webView.tooOld) {
