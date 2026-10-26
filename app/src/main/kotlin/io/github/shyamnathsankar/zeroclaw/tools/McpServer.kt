@@ -133,7 +133,14 @@ object McpServer {
                 result(
                     id,
                     JSONObject()
-                        .put("content", JSONArray().put(JSONObject().put("type", "text").put("text", r.text)))
+                        .put(
+                            "content",
+                            JSONArray().put(JSONObject().put("type", "text").put("text", r.text)).apply {
+                                r.imageJpegBase64?.let {
+                                    put(JSONObject().put("type", "image").put("data", it).put("mimeType", "image/jpeg"))
+                                }
+                            },
+                        )
                         .put("isError", r.isError),
                 )
             }

@@ -90,6 +90,7 @@ import io.github.shyamnathsankar.zeroclaw.GatewayAuth
 import io.github.shyamnathsankar.zeroclaw.ZeroClawRuntime
 import io.github.shyamnathsankar.zeroclaw.background.AgentPrefs
 import io.github.shyamnathsankar.zeroclaw.background.AgentScheduler
+import io.github.shyamnathsankar.zeroclaw.tools.Handoff
 import io.github.shyamnathsankar.zeroclaw.tools.McpRegistrar
 import io.github.shyamnathsankar.zeroclaw.ui.theme.Zc
 import io.github.shyamnathsankar.zeroclaw.ui.theme.ZcTheme
@@ -122,6 +123,10 @@ fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit, onAlwaysOnChange: (Bool
             if (dashboardCreated) webView.value?.reload() else dashboardCreated = true
             tab = Tab.Agent
         }
+
+        // When the agent hands the browser to the user (e.g. to sign in), bring the Browser tab forward.
+        val handoff by Handoff.pending.collectAsState()
+        LaunchedEffect(handoff) { if (handoff != null) tab = Tab.Browser }
 
         BackHandler(enabled = tab != Tab.Agent) { tab = Tab.Agent }
         BackHandler(enabled = tab == Tab.Agent) {

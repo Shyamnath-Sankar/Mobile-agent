@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.shyamnathsankar.zeroclaw.tools.AgentBrowser
 import io.github.shyamnathsankar.zeroclaw.tools.Approvals
+import io.github.shyamnathsankar.zeroclaw.tools.Handoff
 import io.github.shyamnathsankar.zeroclaw.tools.Shell
 import io.github.shyamnathsankar.zeroclaw.tools.TerminalLog
 import io.github.shyamnathsankar.zeroclaw.ui.theme.Zc
@@ -66,6 +67,8 @@ fun BrowserScreen() {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text("Browser", style = MaterialTheme.typography.displaySmall, color = Zc.Ink, modifier = Modifier.weight(1f))
                 Pill(if (state.loading) "Loading" else "Live", if (state.loading) Zc.Butter else Zc.Mint)
+                Spacer(Modifier.width(8.dp))
+                OutlinePill("Clear data", onClick = { scope.launch { AgentBrowser.clearData(context) } })
             }
             Text(
                 "Watch your agent browse. It asks before it submits, signs in or pays. " +
@@ -73,6 +76,30 @@ fun BrowserScreen() {
                 style = MaterialTheme.typography.bodyMedium,
                 color = Zc.InkSoft,
             )
+            val handoff by Handoff.pending.collectAsState()
+            handoff?.let { h ->
+                Spacer(Modifier.height(12.dp))
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Zc.Lilac)
+                        .padding(16.dp),
+                ) {
+                    Text("Your turn", style = MaterialTheme.typography.titleMedium, color = Zc.Ink)
+                    Text(h.message, style = MaterialTheme.typography.bodyMedium, color = Zc.Ink)
+                    Text(
+                        "Do it in the page below; the agent waits and can't see what you type.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Zc.InkSoft,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Pill("Done, continue", Zc.Mint, onClick = { Handoff.finish(true) })
+                        OutlinePill("Cancel", onClick = { Handoff.finish(false) })
+                    }
+                }
+            }
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(

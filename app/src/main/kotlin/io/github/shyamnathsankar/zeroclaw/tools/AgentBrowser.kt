@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.MutableContextWrapper
 import android.graphics.Bitmap
 import android.view.ViewGroup
+import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -55,6 +56,10 @@ object AgentBrowser {
             settings.allowContentAccess = false
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             settings.textZoom = 100
+            // Keep sign-ins: cookies persist on disk, and third-party cookies are allowed because many
+            // login flows (SSO, embedded auth) depend on them.
+            CookieManager.getInstance().setAcceptCookie(true)
+            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                     // Stay on the open web: no intent://, market:// or local-network pages.
@@ -68,6 +73,7 @@ object AgentBrowser {
                 override fun onPageFinished(view: WebView, url: String) {
                     _state.value = BrowserState(url, view.title.orEmpty(), loading = false)
                     pageLoad?.complete(Unit)
+                    CookieManager.getInstance().flush()
                 }
             }
             loadUrl("about:blank")
@@ -177,6 +183,70 @@ object AgentBrowser {
             ToolResult("Went back.")
         } else {
             ToolResult("No previous page.", isError = true)
+        }
+    }
+
+    /** Waits until [text] is visible, [selector] matches, or (with neither) the page has finished loading. */
+    suspend fun waitFor(context: Context, text: String?, selector: String?, timeoutSeconds: Int): ToolResult {
+        val check = when {
+            !text.isNullOrBlank() -> "document.body&&document.body.innerText.indexOf(${JSONObject.quote(text)})>=0"
+            !selector.isNullOrBlank() -> "!!document.querySelector(${JSONObject.quote(selector)})"
+            else -> "document.readyState==='complete'"
+        }
+        val deadline = System.currentTimeMillis() + timeoutSeconds.coerceIn(1, 60) * 1000L
+        while (System.currentTimeMillis() < deadline) {
+            val ok = runCatching { eval(context, "(function(){try{return ($check)?'yes':'no'}catch(e){return 'no'}})()") }.getOrNull()
+            if (ok == "yes") return ToolResult("Ready: ${state.value.title}\n${state.value.url}")
+            delay(500)
+        }
+        return ToolResult("Timed out after ${timeoutSeconds}s waiting" + (text?.let { " for \"$it\"" } ?: selector?.let { " for $it" } ?: ""), isError = true)
+    }
+
+    /** Captures the visible page as a JPEG (max 1024 px wide) so vision models can look at it. */
+    suspend fun screenshot(context: Context): ToolResult = withContext(Dispatchers.Main) {
+        val wv = view(context)
+        if (wv.width == 0 || wv.height == 0) {
+            // Not on screen: lay it out at a phone-sized viewport so it can still be drawn.
+            val dm = context.resources.displayMetrics
+            wv.measure(
+                android.view.View.MeasureSpec.makeMeasureSpec(dm.widthPixels, android.view.View.MeasureSpec.EXACTLY),
+                android.view.View.MeasureSpec.makeMeasureSpec(dm.heightPixels, android.view.View.MeasureSpec.EXACTLY),
+            )
+            wv.layout(0, 0, dm.widthPixels, dm.heightPixels)
+        }
+        val bitmap = Bitmap.createBitmap(wv.width, wv.height, Bitmap.Config.ARGB_8888)
+        wv.draw(android.graphics.Canvas(bitmap))
+        val scale = minOf(1f, 1024f / bitmap.width)
+        val scaled = if (scale < 1f) {
+            Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt(), (bitmap.height * scale).toInt(), true)
+        } else {
+            bitmap
+        }
+        val out = java.io.ByteArrayOutputStream()
+        scaled.compress(Bitmap.CompressFormat.JPEG, 70, out)
+        val b64 = android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP)
+        ToolResult("Screenshot of ${state.value.url} (${scaled.width}x${scaled.height}).", imageJpegBase64 = b64)
+    }
+
+    /**
+     * Clears cookies, cache, history and site storage of the agent browser. The dashboard's own storage
+     * (loopback origin) is kept so the app stays signed in to the agent.
+     */
+    suspend fun clearData(context: Context) = withContext(Dispatchers.Main) {
+        CookieManager.getInstance().removeAllCookies(null)
+        CookieManager.getInstance().flush()
+        android.webkit.WebStorage.getInstance().getOrigins { origins ->
+            origins?.values?.forEach { o ->
+                val origin = (o as? android.webkit.WebStorage.Origin)?.origin ?: return@forEach
+                if (!origin.contains("127.0.0.1") && !origin.contains("localhost")) {
+                    android.webkit.WebStorage.getInstance().deleteOrigin(origin)
+                }
+            }
+        }
+        view(context).apply {
+            clearCache(true)
+            clearHistory()
+            loadUrl("about:blank")
         }
     }
 

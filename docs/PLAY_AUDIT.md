@@ -26,7 +26,9 @@ Google Play Developer Program Policy (October 2026 PDF), and what the app does a
 
 | Tool | Works | Policy notes | Status |
 |---|---|---|---|
-| `browser_navigate/snapshot/click/type/scroll/back` | Yes (WebView) | WebView JS is exempt from the executable-code rule; no `addJavascriptInterface`; no OAuth in WebView | Kept; submits, sign-ins, payments and secret fields need approval |
+| `browser_navigate/snapshot/click/type/scroll/back/wait/screenshot` | Yes (WebView) | WebView JS is exempt from the executable-code rule; no `addJavascriptInterface` (Play flags it for untrusted content); no Google OAuth in WebView | Kept; submits, sign-ins, payments and secret fields need approval |
+| `browser_handoff` | Yes | User signs in themselves; the agent never handles passwords | Kept; banner in the Browser tab + notification, 10-minute limit |
+| Browser cookies | Yes | Stored in app-private WebView storage | Persisted (incl. third-party for SSO); "Clear data" wipes them, keeping the dashboard login |
 | `web_fetch` | Yes | Network only | Kept; loopback/private networks blocked |
 | `run_command` | Yes (toybox `/system/bin/sh`) | Only system binaries in the app sandbox, nothing downloaded | Kept; destructive commands and commands leaving the workspace need approval; 300 s / 32 KB limits |
 | Python / Node / pip / npm | Not bundled | Runtime-loaded interpreted code must not enable violations; large binaries | Not included |

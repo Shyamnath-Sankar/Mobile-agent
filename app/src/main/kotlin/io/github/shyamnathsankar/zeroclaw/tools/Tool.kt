@@ -3,8 +3,8 @@ package io.github.shyamnathsankar.zeroclaw.tools
 import android.content.Context
 import org.json.JSONObject
 
-/** Result of a tool call, returned to the agent as MCP text content. */
-data class ToolResult(val text: String, val isError: Boolean = false)
+/** Result of a tool call, returned to the agent as MCP content (text, plus an optional JPEG image). */
+data class ToolResult(val text: String, val isError: Boolean = false, val imageJpegBase64: String? = null)
 
 /** A capability the app offers the agent over MCP. */
 interface Tool {

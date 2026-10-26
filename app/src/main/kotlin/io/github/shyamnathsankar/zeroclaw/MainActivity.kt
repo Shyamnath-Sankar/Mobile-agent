@@ -55,6 +55,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+        android.webkit.CookieManager.getInstance().flush()
         if (isChangingConfigurations) return
         // Leaving the app: hand over to a short, visible grace period so in-flight work can finish.
         // Started from onPause because the app still counts as foreground here.
@@ -66,6 +67,11 @@ class MainActivity : ComponentActivity() {
             ContextCompat.startForegroundService(this, ZeroClawService.startIntent(this, ZeroClawService.MODE_GRACE))
         }
         AgentController.release(this, Hold.Ui)
+    }
+
+    companion object {
+        /** Set by the browser hand-off notification; the Browser tab opens on its own while a hand-off is pending. */
+        const val EXTRA_OPEN_BROWSER = "open_browser"
     }
 
     private fun setAlwaysOn(enabled: Boolean) {

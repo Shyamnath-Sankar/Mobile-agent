@@ -25,7 +25,8 @@ object Tools {
         ) { ctx, a -> AgentBrowser.click(ctx, a.getInt("n")) },
         simple(
             "browser_type",
-            "Type text into field [n] from the latest snapshot; set submit=true to submit the form (asks the user first).",
+            "Type text into field [n] from the latest snapshot; set submit=true to submit the form (asks the user first). " +
+                "Never type passwords or one-time codes: use browser_handoff so the user enters them.",
             schema(
                 "n" to intProp("Element number"),
                 "text" to stringProp("Text to type"),
@@ -39,6 +40,36 @@ object Tools {
             schema("direction" to enumProp("Where to scroll", "down", "up", "top", "bottom"), required = listOf("direction")),
         ) { ctx, a -> AgentBrowser.scroll(ctx, a.getString("direction")) },
         simple("browser_back", "Go back to the previous page.", schema()) { ctx, _ -> AgentBrowser.back(ctx) },
+        simple(
+            "browser_wait",
+            "Wait until text appears, a CSS selector matches, or (with neither) the page finishes loading. Use after clicks on pages that load content dynamically.",
+            schema(
+                "text" to stringProp("Visible text to wait for"),
+                "selector" to stringProp("CSS selector to wait for"),
+                "timeout_seconds" to intProp("1-60 (default 15)"),
+            ),
+        ) { ctx, a ->
+            AgentBrowser.waitFor(ctx, a.optString("text").ifEmpty { null }, a.optString("selector").ifEmpty { null }, a.optInt("timeout_seconds", 15))
+        },
+        simple(
+            "browser_screenshot",
+            "Take a screenshot of the current page (returned as an image) to see layout, charts or images that the text snapshot misses.",
+            schema(),
+        ) { ctx, _ -> AgentBrowser.screenshot(ctx) },
+        simple(
+            "browser_handoff",
+            "Hand the browser to the user and wait until they tap Done: use it when a page needs the user to sign in, " +
+                "enter a password or code, solve a captcha or confirm something personally. Never type passwords yourself. " +
+                "Returns once the user is finished (or cancelled); then call browser_snapshot to continue.",
+            schema("message" to stringProp("What the user should do, e.g. 'Sign in to your GitHub account'"), required = listOf("message")),
+        ) { ctx, a ->
+            val done = Handoff.request(ctx, a.getString("message"))
+            if (done) {
+                ToolResult("The user finished. Now at: ${AgentBrowser.state.value.title}\n${AgentBrowser.state.value.url}")
+            } else {
+                ToolResult("The user cancelled or did not respond.", isError = true)
+            }
+        },
         simple(
             "web_fetch",
             "Download a public web page and return clean readable text (faster than the browser for research).",
