@@ -35,6 +35,12 @@ object ZeroClawRuntime {
     private val _ready = MutableStateFlow(false)
     val ready: StateFlow<Boolean> = _ready.asStateFlow()
 
+    private val _pairCode = MutableStateFlow<String?>(null)
+    val pairCode: StateFlow<String?> = _pairCode.asStateFlow()
+
+    private val _pairStatus = MutableStateFlow("")
+    val pairStatus: StateFlow<String> = _pairStatus.asStateFlow()
+
     private var daemon: Process? = null
 
     fun binary(context: Context): File =
@@ -102,6 +108,39 @@ object ZeroClawRuntime {
         }
     }
 
+    /**
+     * Asks the running gateway for a fresh one-time pairing code via the CLI
+     * (`zeroclaw gateway get-paircode --new --json`), which authenticates with the admin token
+     * the daemon wrote into the shared config dir.
+     */
+    fun requestPairCode(context: Context) {
+        val app = context.applicationContext
+        if (!_running.value) {
+            _pairStatus.value = "Start the agent first."
+            return
+        }
+        _pairStatus.value = "Requesting code…"
+        _pairCode.value = null
+        thread(name = "zeroclaw-paircode", isDaemon = true) {
+            val args = listOf("gateway", "get-paircode", "--new", "--host", HOST, "--port", PORT.toString(), "--json")
+            val process = launch(app, args, captureToLog = false)
+            if (process == null) {
+                _pairStatus.value = "Could not run the CLI, see Logs."
+                return@thread
+            }
+            val output = process.inputStream.bufferedReader().readText()
+            process.waitFor()
+            val code = Regex("\"pairing_code\"\\s*:\\s*\"([^\"]+)\"").find(output)?.groupValues?.get(1)
+            if (code != null) {
+                _pairCode.value = code
+                _pairStatus.value = "Enter this code in the dashboard pairing screen."
+            } else {
+                _pairStatus.value = "No code returned: ${output.trim().take(300)}"
+                log("[app] get-paircode output: ${output.trim()}")
+            }
+        }
+    }
+
     fun clearLogs() = _logs.update { emptyList() }
 
     private fun prepare(app: Context) {
@@ -112,7 +151,7 @@ object ZeroClawRuntime {
     private fun homeDir(app: Context) = File(app.filesDir, "home")
     private fun dataDir(app: Context) = File(app.filesDir, "zeroclaw")
 
-    private fun launch(app: Context, args: List<String>): Process? {
+    private fun launch(app: Context, args: List<String>, captureToLog: Boolean = true): Process? {
         val bin = binary(app)
         if (!bin.exists()) {
             log("[app] ERROR: ${describeBinary(app)}")
@@ -129,8 +168,10 @@ object ZeroClawRuntime {
         }
         return try {
             val process = pb.start()
-            thread(name = "zeroclaw-log", isDaemon = true) {
-                process.inputStream.bufferedReader().useLines { lines -> lines.forEach(::log) }
+            if (captureToLog) {
+                thread(name = "zeroclaw-log", isDaemon = true) {
+                    process.inputStream.bufferedReader().useLines { lines -> lines.forEach(::log) }
+                }
             }
             process
         } catch (e: Exception) {

@@ -126,7 +126,7 @@ private fun DashboardScreen() {
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
             Text(
-                "First run: the pairing code is printed in the Logs tab.",
+                "First run: generate a pairing code on the Control tab.",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.weight(1f).align(Alignment.CenterVertically),
             )
@@ -214,6 +214,23 @@ private fun ControlScreen(onStart: () -> Unit, onStop: () -> Unit) {
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
             ) { Text("Stop") }
         }
+
+        val pairCode by ZeroClawRuntime.pairCode.collectAsState()
+        val pairStatus by ZeroClawRuntime.pairStatus.collectAsState()
+        Text("Pairing", style = MaterialTheme.typography.titleSmall)
+        Text("Dashboard asks for a pairing code the first time. Generate one here, then type it in.")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { ZeroClawRuntime.requestPairCode(context) }, enabled = running) {
+                Text("Get pairing code")
+            }
+            if (pairCode != null) {
+                OutlinedButton(onClick = { copyToClipboard(context, pairCode!!) }) { Text("Copy") }
+            }
+        }
+        if (pairCode != null) {
+            Text(pairCode!!, fontFamily = FontFamily.Monospace, fontSize = 28.sp)
+        }
+        if (pairStatus.isNotEmpty()) Text(pairStatus, style = MaterialTheme.typography.bodySmall)
 
         Text("Troubleshooting: run a one-off command", style = MaterialTheme.typography.titleSmall)
         OutlinedTextField(

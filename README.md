@@ -13,7 +13,7 @@ and shows its dashboard in-app. First build is a feasibility spike (arm64 only).
 
 1. **Control** tab, **Start agent** (allow notifications so the foreground notification shows).
 2. When the gateway is up, the **Dashboard** tab shows ZeroClaw's web UI. The first-run pairing
-   code appears in the **Logs** tab.
+   code comes from the **Get pairing code** button on the Control tab.
 3. If something fails, use **Copy all** in Logs and share the output.
 
 See `CLAUDE.md` for architecture and rules.
