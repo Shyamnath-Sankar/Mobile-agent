@@ -34,6 +34,17 @@ alarm (opt-in, user-granted SCHEDULE_EXACT_ALARM; never USE_EXACT_ALARM), and `S
 starts the agent, waits until due jobs' `last_run` passes their due time (max 9 min), re-books, releases.
 No wakelocks, no REQUEST_IGNORE_BATTERY_OPTIMIZATIONS (only a link to the battery settings list).
 
+## Phone tools (MCP)
+
+`tools/McpServer` is a Streamable-HTTP MCP server on 127.0.0.1:42618 (per-install token in the URL).
+`McpRegistrar` registers it through the gateway config API as `mcp.servers.android` (http, tool timeout 330 s),
+bundle `mcp_bundles.phone`, granted to every agent; ZeroClaw sees the tools as `android__<name>`.
+Tools (`tools/Tools.kt`): browser_navigate/snapshot/click/type/scroll/back (one shared WebView driven only via
+evaluateJavascript, never addJavascriptInterface; live in the Browser tab), web_fetch, run_command
+(`/system/bin/sh` in `files/workspace`, no downloads). `UrlGuard` blocks loopback/private hosts.
+Risky actions (submits, sign-ins, payments, secret fields, destructive commands) go through `Approvals`
+(in-app dialog + notification, deny on 2-minute timeout).
+
 ## Design
 
 Sage paper (#DDE1DA), ink type (#0F100D), Instrument Serif for display, Manrope for UI, pastel

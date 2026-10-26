@@ -43,7 +43,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.List
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
@@ -89,7 +92,9 @@ import kotlinx.coroutines.delay
 
 private enum class Tab(val label: String, val icon: ImageVector) {
     Agent("Agent", Icons.Outlined.Home),
-    Logs("Logs", Icons.Outlined.Info),
+    Browser("Browser", Icons.Outlined.Search),
+    Terminal("Shell", Icons.Outlined.Build),
+    Logs("Logs", Icons.Outlined.List),
     App("App", Icons.Outlined.Settings),
 }
 
@@ -128,6 +133,8 @@ fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit, onAlwaysOnChange: (Bool
                     tab == Tab.Agent && !ready -> Surface(Modifier.fillMaxSize(), color = Zc.Sage) {
                         StartupScreen(onStart = onStart, onShowLogs = { tab = Tab.Logs })
                     }
+                    tab == Tab.Browser -> Surface(Modifier.fillMaxSize(), color = Zc.Sage) { BrowserScreen() }
+                    tab == Tab.Terminal -> Surface(Modifier.fillMaxSize(), color = Zc.Sage) { TerminalScreen() }
                     tab == Tab.Logs -> Surface(Modifier.fillMaxSize(), color = Zc.Sage) { LogsScreen() }
                     tab == Tab.App -> Surface(Modifier.fillMaxSize(), color = Zc.Sage) {
                         AppScreen(onStart, onStop, onAlwaysOnChange, onReloadDashboard = { webView.value?.reload() })
@@ -136,6 +143,7 @@ fun ZeroClawApp(onStart: () -> Unit, onStop: () -> Unit, onAlwaysOnChange: (Bool
                 }
             }
         }
+        ApprovalDialog()
     }
 }
 
@@ -155,12 +163,14 @@ private fun BottomTabs(selected: Tab, onSelect: (Tab) -> Unit) {
                         .clip(CircleShape)
                         .background(if (active) Zc.Ink else Zc.Sage)
                         .clickable { onSelect(t) }
-                        .padding(horizontal = 18.dp, vertical = 10.dp),
+                        .padding(horizontal = if (active) 16.dp else 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(t.icon, contentDescription = null, tint = if (active) Zc.Sage else Zc.Ink, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(t.label, style = MaterialTheme.typography.labelLarge, color = if (active) Zc.Sage else Zc.Ink)
+                    Icon(t.icon, contentDescription = t.label, tint = if (active) Zc.Sage else Zc.Ink, modifier = Modifier.size(20.dp))
+                    if (active) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(t.label, style = MaterialTheme.typography.labelLarge, color = Zc.Sage)
+                    }
                 }
             }
         }

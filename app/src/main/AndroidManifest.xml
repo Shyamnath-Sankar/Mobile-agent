@@ -48,5 +48,9 @@
                 <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".tools.ApprovalReceiver"
+            android:exported="false" />
     </application>
 </manifest>

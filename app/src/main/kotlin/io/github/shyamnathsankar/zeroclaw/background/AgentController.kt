@@ -3,6 +3,8 @@ package io.github.shyamnathsankar.zeroclaw.background
 import android.content.Context
 import io.github.shyamnathsankar.zeroclaw.ZeroClawRuntime
 import io.github.shyamnathsankar.zeroclaw.ZeroClawService
+import io.github.shyamnathsankar.zeroclaw.tools.McpRegistrar
+import io.github.shyamnathsankar.zeroclaw.tools.McpServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -38,11 +40,24 @@ object AgentController {
         val app = context.applicationContext
         if (hold == Hold.Ui && userStopped) return
         holds += hold
+        scope.launch { McpServer.ensureStarted(app) }
         scope.launch { ZeroClawRuntime.startDaemon(app) }
         if (syncLoop?.isActive != true) {
             syncLoop = scope.launch {
+                var registeredFor: Long? = null
                 while (isActive) {
-                    if (ZeroClawRuntime.ready.value) runCatching { AgentScheduler.syncFromGateway(app) }
+                    if (!ZeroClawRuntime.ready.value) {
+                        delay(1_000)
+                        continue
+                    }
+                    // Each fresh daemon: make sure ZeroClaw knows the phone tools, then keep schedules booked.
+                    val started = ZeroClawRuntime.startedAt.value
+                    if (started != null && started != registeredFor) {
+                        runCatching { McpRegistrar.ensure(app) }
+                            .onFailure { ZeroClawRuntime.appLog("[app] could not register phone tools: ${it.message}") }
+                        registeredFor = started
+                    }
+                    runCatching { AgentScheduler.syncFromGateway(app) }
                     delay(60_000)
                 }
             }
