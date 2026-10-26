@@ -35,6 +35,10 @@ object ZeroClawRuntime {
     private val _ready = MutableStateFlow(false)
     val ready: StateFlow<Boolean> = _ready.asStateFlow()
 
+    /** Wall-clock time the current daemon started, or null when stopped. */
+    private val _startedAt = MutableStateFlow<Long?>(null)
+    val startedAt: StateFlow<Long?> = _startedAt.asStateFlow()
+
     private var daemon: Process? = null
 
     fun binary(context: Context): File =
@@ -58,6 +62,7 @@ object ZeroClawRuntime {
         log("[app] starting: zeroclaw daemon --host $HOST -p $PORT")
         val process = launch(app, listOf("daemon", "--host", HOST, "-p", PORT.toString())) ?: return
         daemon = process
+        _startedAt.value = System.currentTimeMillis()
         _running.value = true
         _ready.value = false
 
@@ -76,6 +81,7 @@ object ZeroClawRuntime {
             synchronized(this) { if (daemon === process) daemon = null }
             _running.value = false
             _ready.value = false
+            _startedAt.value = null
             log("[app] zeroclaw daemon exited with code $code")
         }
     }

@@ -1,0 +1,123 @@
+/*
+ * ZeroClaw Mobile theme for the bundled ZeroClaw dashboard.
+ * Sage paper background, ink-black type, a high-contrast serif for titles and
+ * pastel accents (lilac, mint, forest green, butter yellow, apricot).
+ * The dashboard writes its own theme as inline custom properties on :root,
+ * so every token here is !important to win over them.
+ */
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('/_app/zc-theme/instrument-serif.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('/_app/zc-theme/instrument-serif-italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Manrope';
+  src: url('/_app/zc-theme/manrope.ttf') format('truetype');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root, :root[class], :root[data-theme], html {
+  color-scheme: light !important;
+
+  --zc-sage: #dde1da;
+  --zc-paper: #e7eae4;
+  --zc-ink: #0f100d;
+  --zc-lilac: #d8b4f6;
+  --zc-mint: #a8d9b8;
+  --zc-forest: #3d7a4e;
+  --zc-butter: #efe35d;
+  --zc-apricot: #f6a067;
+  --zc-font-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+
+  --pc-bg-base: #dde1da !important;
+  --pc-bg-surface: #e5e8e2 !important;
+  --pc-bg-elevated: #eceee9 !important;
+  --pc-bg-input: #f1f3ef !important;
+  --pc-bg-code: #d2d7cf !important;
+  --pc-bg-sidebar: rgba(221, 225, 218, 0.97) !important;
+  --pc-bg-surface-subtle: #e1e4dd !important;
+  --pc-bg-surface-elevated: #f1f3ef !important;
+
+  --pc-border: rgba(15, 16, 13, 0.12) !important;
+  --pc-border-strong: rgba(15, 16, 13, 0.22) !important;
+
+  --pc-text-primary: #0f100d !important;
+  --pc-text-secondary: #363932 !important;
+  --pc-text-muted: #5e625a !important;
+  --pc-text-faint: #8a8e85 !important;
+
+  --pc-accent: #3d7a4e !important;
+  --pc-accent-light: #2f6640 !important;
+  --pc-accent-dim: rgba(61, 122, 78, 0.35) !important;
+  --pc-accent-glow: rgba(61, 122, 78, 0.12) !important;
+  --pc-accent-rgb: 61, 122, 78 !important;
+  --pc-text-link: #2f6640 !important;
+  --pc-focus: #0f100d !important;
+
+  --pc-hover: rgba(15, 16, 13, 0.05) !important;
+  --pc-hover-strong: rgba(15, 16, 13, 0.09) !important;
+  --pc-separator: rgba(15, 16, 13, 0.1) !important;
+
+  --pc-scrollbar-thumb: #a9aea4 !important;
+  --pc-scrollbar-track: transparent !important;
+  --pc-scrollbar-thumb-hover: #8a8e85 !important;
+
+  --pc-shadow-sm: 0 1px 2px rgba(15, 16, 13, 0.06) !important;
+  --pc-shadow-md: 0 6px 24px rgba(15, 16, 13, 0.10) !important;
+
+  --pc-font-ui: 'Manrope', system-ui, sans-serif !important;
+
+  --color-status-success: #3d7a4e !important;
+  --color-status-warning: #c9771f !important;
+  --color-status-error: #c8423b !important;
+  --color-status-info: #7a52c7 !important;
+
+  --radius-sm: 8px !important;
+  --radius-md: 12px !important;
+  --radius-lg: 16px !important;
+  --radius-xl: 22px !important;
+}
+
+html, body {
+  background: var(--zc-sage) !important;
+  font-family: var(--pc-font-ui) !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Page and section titles in the editorial serif. */
+h1, h2 {
+  font-family: var(--zc-font-display) !important;
+  font-weight: 400 !important;
+  letter-spacing: -0.01em;
+}
+main h1 { font-size: 2.6rem !important; line-height: 1.05 !important; }
+main h2 { font-size: 1.6rem !important; line-height: 1.15 !important; }
+
+/* Primary actions: solid ink with sage text, fully rounded like the reference. */
+button.bg-pc-accent,
+a.bg-pc-accent {
+  background: var(--zc-ink) !important;
+  color: var(--zc-sage) !important;
+  border-radius: 999px !important;
+}
+
+/* Small status chips read as pastel pills. */
+.rounded-full.bg-pc-accent\/10,
+.rounded-full.bg-pc-accent\/15,
+.rounded-full.bg-pc-accent\/20 {
+  background: var(--zc-lilac) !important;
+  color: var(--zc-ink) !important;
+}
+
+::selection { background: var(--zc-lilac); color: var(--zc-ink); }

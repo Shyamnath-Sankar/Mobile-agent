@@ -24,6 +24,14 @@ as a local MCP server. A UniFFI facade crate is a possible later step, not the c
 - Release builds are arm64-v8a only (ZeroClaw publishes no x86_64 Android binary), so the
   emulator needs an arm64 image or use a real device.
 
+## Design
+
+Sage paper (#DDE1DA), ink type (#0F100D), Instrument Serif for display, Manrope for UI, pastel
+accents (lilac, mint, forest, butter, apricot), round ink arrow buttons. Native tokens live in
+`ui/theme/Theme.kt`; the dashboard is themed by `assets/zc-theme/theme.css` (overrides its `--pc-*`
+tokens with `!important`, served at `/_app/zc-theme/`, linked into `index.html` by `WebAssets`).
+Keep both in sync. Fonts are OFL (licences in `assets/zc-theme/`).
+
 ## Hard rules (Play-policy safe)
 
 - No AccessibilityService for automation.
